@@ -6,6 +6,7 @@
 #   bash server/anywiki.sh switch <엔진>     # 엔진 바꾸기(opennamu·markdown·dokuwiki·mediawiki). 문서를 통역해 옮긴다
 #   bash server/anywiki.sh export <형식>     # export/ 에 내보내기(opennamu·mediawiki·dokuwiki·markdown)
 #   bash server/anywiki.sh import <파일>     # 파일을 지금 엔진으로 가져오기(openNAMU 는 꺼진 상태에서)
+#   bash server/anywiki.sh plugin list|on 이름|off 이름|search 낱말|install 이름   # 지금 엔진의 플러그인
 #   sudo bash server/anywiki.sh install-service   # systemd 에 등록해 부팅 때 자동 시작
 #
 # 환경 변수: LISTEN(기본 0.0.0.0:3000)
@@ -103,6 +104,10 @@ case "${1:-}" in
     if [ "$ENGINE" = opennamu ] && running engine; then echo "openNAMU 는 끈 뒤에 가져오세요: $0 stop"; exit 1; fi
     python3 scripts/transfer.py import "$KIT" "$(realpath "$f")"
     ;;
+  plugin)
+    shift
+    python3 scripts/kit.py plugin "$@"
+    ;;
   install-service)
     [ "$(id -u)" = 0 ] || { echo "sudo 로 실행하세요"; exit 1; }
     USER_NAME="${SUDO_USER:-root}"
@@ -126,6 +131,6 @@ UNIT
     echo "등록했습니다: systemctl status anywiki"
     ;;
   *)
-    sed -n '2,17p' "$0"
+    sed -n '2,18p' "$0"
     ;;
 esac

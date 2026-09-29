@@ -49,6 +49,9 @@
   리눅스 `server/install.sh [엔진]`, `server/anywiki.sh start|stop|status|switch|export|import|install-service`(프로세스 묶음으로 띄우고 묶음째 끔).
   Docker `docker/entrypoint.sh`(`ENGINE` 이 `wikis/.engine` 과 다르면 switch).
 - 공개: `scripts/cloudflared.py`(빠른 터널). 새 판 알림: `scripts/update_check.py`(GitHub 최신 릴리스, 알리기만, 404=릴리스 없음).
+- 플러그인: `Engine.plugins()/set_plugin()/search_plugins()/install_plugin()`, `plugin_search`·`plugin_note`. 관리판 `/api/plugins`(GET)·`/api/plugin`·
+  `/api/plugin_search`·`/api/plugin_install`(→ `kit.py plugin install`, plugin.log). DokuWiki 저장소 주소는 `sources.json` 의 `plugin_repos`,
+  시험 때는 `ANYWIKI_DOKU_REPO`(이때만 http 허용). 진짜 저장소(dokuwiki.org)는 이 환경에서 막혀 있어 API 모양(`fmt=json`, `q`, `ext[]`)은 문서 기준이다(주인 PC 에서 확인 필요).
 - 요구 명세: `docs/SPEC.md`(주인이 요구한 것 목록 + 구현 결정). 요구가 늘면 여기에 먼저 적는다.
 
 ## 4. 시험하는 법
@@ -67,6 +70,8 @@
 - 관리판을 고친 뒤 시험할 때 예전 관리판 프로세스가 3100 을 잡고 있지 않은지 확인한다.
 - 리눅스에서는 `cleanup_leftovers()` 가 아무것도 안 한다(Windows 전용).
 - 나무마크에서 백틱(`)은 문법을 막지 않는다. 문법 예시는 `{{{ }}}` 로 감싼다(첫 화면에서 분류가 실제로 붙던 문제).
+- git 태그 푸시는 이 환경의 git 프록시가 끊는다(가지 푸시는 됨). 태그·릴리스는 주인이 만든다.
+- `pgrep -f`/`pkill -f` 에 넣은 패턴이 내 명령줄에도 들어 있으면 내 셸이 죽는다(`ps -eo pid,cmd | grep` 로 pid 를 골라 끈다).
 - 이 클라우드 환경에서는 dokuwiki.org · releases.wikimedia.org · windows.php.net · extdist.wmflabs.org 가 막혀 있다(다시 시도하지 말 것).
   Docker Hub 레지스트리(registry-1.docker.io, auth.docker.io)와 허용된 GitHub 저장소는 된다. 그래서 엔진 파일은 Docker Hub 이미지 층에서 받는다.
 - 시스템 PHP 8.4 가 있다(`php -S`). `PHP_CLI_SERVER_WORKERS=4` 로 일꾼을 띄우므로 끌 때 프로세스 묶음째 꺼야 남지 않는다.
@@ -78,7 +83,7 @@
 - [완료 0.3] 엔진 고르기: DokuWiki·MediaWiki 도 원터치 설치·켜기(PHP, MediaWiki 는 SQLite). Markdown 내장 엔진도 추가.
 - [완료 0.2·0.3] 각 엔진 형식으로 내보내기·가져오기, 엔진 바꾸기. (2026-09-29 바뀜: pandoc 안은 버리고 공용 언어(AWM) 통역기를 직접 만듦 —
   파이썬 표준 라이브러리만 쓰는 원칙 4, 그리고 나무마크를 pandoc 이 모름.)
-- [ ] 0.4 엔진별 플러그인: DokuWiki(플러그인 저장소 API + zip 설치, 동봉 플러그인 켜기/끄기), MediaWiki(동봉 확장 켜기/끄기 = `write_extensions` + `update`),
+- [완료 0.4] 엔진별 플러그인: DokuWiki(플러그인 저장소 API + zip 설치, 동봉 플러그인 켜기/끄기), MediaWiki(동봉 확장 켜기/끄기 = `write_extensions` + `update`),
   Markdown 내장(katex·highlight 켜기/끄기), openNAMU(없음). 가짜 저장소 서버로 시험.
 - [ ] 0.5 공동위키: 서로 ID 를 등록한 위키끼리 편집 주고받기(유어위키의 Ed25519·DHT·터널 창구 재사용, 문서는 AWM 으로, 엔진이 달라도 됨).
   마지막에 쓴 판이 이김, 남에게서 받은 판은 다시 퍼뜨리지 않음.
@@ -88,6 +93,12 @@
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
 
+### 2026-09-29 — 0.4 엔진별 플러그인
+- DokuWiki(동봉 켜고 끄기 + 저장소 설치), MediaWiki(동봉 확장 34개 켜고 끄기), Markdown(수식·코드 색칠). 관리판 플러그인 칸, `kit.py plugin`, `anywiki.sh plugin`.
+- 확인: 관리판 화면(MediaWiki 확장 목록, 한국어 설명), Poem 끄기, 다른 Origin 에서 온 요청 403, 관리판 SIGTERM 때 엔진·중계 서버도 꺼짐.
+  가짜 저장소로 DokuWiki 설치·거절 시험.
+- 태그 v0.2·v0.3 은 로컬에만 있다(푸시가 막힘). 주인이 GitHub 에서 커밋 7513dc8(0.2)·8dd3516(0.3)·이 커밋(0.4)으로 릴리스를 만들면 된다.
+
 ### 2026-09-29 — 0.2 공용 언어 통역기, 0.3 엔진 4개·엔진 바꾸기
 - 주인 요구(원문 요약은 `docs/SPEC.md`): 도쿠·미디어·오픈나무·마크다운으로 쓰고 내보내기·가져오기, 키트 안에서 형식 바꾸기, 가운데 공용 언어(확장 마크다운, 보이지 않게),
   엔진별 플러그인, 공동위키(서로 ID 등록), 임시 주소 공개 유지, README·커밋·릴리스로 이력 관리, AI 혼자 구현.
@@ -95,7 +106,7 @@
 - 0.3: `engines/`, `mdwiki.py`, `fetch.py`, `transfer.py`, `kit.py`, 관리판 다시 씀(엔진 칸), 리눅스·Docker 엔진 대응, 시험 `test_engines.py`.
 - 확인: 관리판으로 Markdown 설치 → 켜기 → DokuWiki 로 바꾸기 → MediaWiki 로 바꾸기(첫 화면이 '대문'으로), 리눅스 스크립트 Markdown ↔ DokuWiki,
   Docker 시작 스크립트 흉내(ENGINE 을 바꿔 다시 시작하면 옮김). 1,500 문서로 openNAMU → Markdown → DokuWiki → MediaWiki → openNAMU 한 바퀴.
-- 결정: 릴리스는 태그만(v0.2 = 통역기 커밋, v0.3 = 이 커밋). GitHub 릴리스 페이지는 주인이 만든다.
+- 결정: 릴리스는 태그만(v0.2 = 통역기 커밋, v0.3 = 이 커밋). GitHub 릴리스 페이지는 주인이 만든다. (2026-09-29 바뀜: 태그 푸시가 막혀 커밋 번호로 적음)
 
 ### 2026-09-29 — 첫 판(유어위키 1.2 에서 갈라짐)
 - 유어위키에서 가져온 것: 관리판(설정 유지·칸 접기·공개·새 판 알림), 오프라인 중계 서버, 내보내기(4형식), openNAMU 가져오기, 리눅스·Docker 스크립트, 설치 틀.

@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 3100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.3"
+KIT_VERSION = "0.4"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3", ".xml", ".xml.gz", ".zip", ".md")
@@ -258,6 +258,40 @@ def run_export(fmt):
     return "내보내기를 시작했습니다. 남은 시간은 진행 줄에 표시됩니다"
 
 
+def plugin_list():
+    e = eng()
+    if not e.installed():
+        return {"engine": e.name, "items": [], "note": "엔진을 먼저 설치하세요", "search": False}
+    try:
+        items = e.plugins()
+    except Exception as ex:
+        items, note = [], f"플러그인 목록을 읽지 못했습니다: {ex}"
+    else:
+        note = e.plugin_note
+    return {"engine": e.name, "items": items, "note": note, "search": e.plugin_search}
+
+
+def set_plugin(pid, on):
+    if busy() or alive("plugin"):
+        return f"{busy() or '플러그인 설치'} 중입니다"
+    try:
+        return eng().set_plugin(pid, on)
+    except (ValueError, RuntimeError) as e:
+        return str(e)
+
+
+def run_plugin_install(pid):
+    if busy() or alive("plugin"):
+        return f"{busy() or '플러그인 설치'} 중입니다"
+    if not eng().plugin_search:
+        return "이 엔진은 저장소에서 플러그인을 받지 않습니다"
+    if not re.fullmatch(r"[a-z0-9_]+", pid):
+        return "플러그인 이름이 올바르지 않습니다"
+    open(os.path.join(ROOT, "plugin.log"), "w").close()
+    spawn("plugin", [sys.executable, os.path.join(SCRIPTS, "kit.py"), "plugin", "install", pid], "plugin.log")
+    return f"{pid} 설치를 시작했습니다"
+
+
 def tail(name, n=12):
     try:
         with open(os.path.join(ROOT, name), encoding="utf-8", errors="replace") as f:
@@ -316,6 +350,8 @@ def status():
     st["export_dir"] = EXPORT_DIR
     st["import_files"], st["import_dir"] = import_files(), IMPORT_DIR
     st["import_log"] = tail("import.log", 6)
+    st["plugin_log"] = tail("plugin.log", 6)
+    st["running"]["plugin"] = alive("plugin")
     st["public_url"] = tunnel_url()
     st["busy"] = busy()
     return st
@@ -328,6 +364,7 @@ h1{font-size:22px}details.sec{border:1px solid #ddd;border-radius:8px;padding:12
 h2{font-size:16px;margin:0 0 8px}button{font-size:14px;padding:6px 12px;margin:2px;cursor:pointer}
 .on{color:#0a0}.off{color:#999}pre{background:#f6f6f6;padding:8px;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto}
 label{margin-right:12px}.eng{border:1px solid #e3e3e3;border-radius:6px;padding:8px 10px;margin:6px 0}
+.pl{display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid #f0f0f0;font-size:14px}.pl .d{font-size:12px;color:#666}
 .eng.cur{border-color:#3b5bdb;background:#f5f7ff}.eng b{font-size:15px}.eng .d{font-size:13px;color:#555}.note{font-size:13px;color:#555}
 code.pw{background:#fff4e0;padding:2px 6px;border-radius:4px}
 </style><div id="upd" hidden style="background:#fff4e0;border:1px solid #f0c060;border-radius:8px;padding:10px 14px;margin:12px 0"></div>
@@ -342,6 +379,11 @@ code.pw{background:#fff4e0;padding:2px 6px;border-radius:4px}
 지금 엔진의 데이터는 <code>wikis/엔진이름/</code> 에 그대로 남으니, 언제든 다시 바꿔 돌아올 수 있습니다(돌아갈 때도 그 사이 바뀐 문서를 옮깁니다).
 문법이 엔진마다 달라 틀·표 모양 같은 일부는 완전히 같게 옮겨지지 않을 수 있습니다.</p>
 <pre id="englog"></pre></details>
+<details class="sec" id="sec-plugin"><summary><h2>플러그인</h2><span class="sum" id="sum-plugin"></span></summary>
+<p class="note" id="pnote"></p>
+<div id="psearch" hidden style="margin:8px 0"><input id="pq" placeholder="저장소에서 찾기 (예: wrap)" onkeydown="if(event.key==='Enter')psearch()">
+<button onclick="psearch()">찾기</button><div id="presult"></div><pre id="plog"></pre></div>
+<div id="plist" style="max-height:360px;overflow:auto"></div></details>
 <details class="sec" id="sec-color"><summary><h2>위키 색</h2><span class="sum" id="sum-color"></span></summary>
 <span id="swatch" style="display:inline-block;width:28px;height:28px;border-radius:6px;vertical-align:middle;border:1px solid #ccc"></span>
 <select id="preset" onchange="if(this.value)setColor(this.value)">
@@ -392,13 +434,30 @@ async function sw(n,name){if(confirm('엔진을 '+name+' (으)로 바꿀까요?\
 async function exp(t){if(confirm(t+' 형식으로 내보낼까요?')){alert(await api('/api/export?to='+t));load()}}
 async function imp(){var f=document.getElementById('ifile').value;if(!f){alert('import 폴더에 파일을 넣은 뒤 고르세요');return}
 if(confirm(f+' 을(를) 가져올까요?')){alert(await api('/api/import?file='+encodeURIComponent(f)));load()}}
+let plEngine='';
+async function loadPlugins(){const r=await (await fetch('/api/plugins')).json();plEngine=r.engine;
+document.getElementById('pnote').textContent=r.note||'';document.getElementById('psearch').hidden=!r.search;
+document.getElementById('plist').innerHTML=r.items.map(p=>'<div class="pl"><label><input type="checkbox" '+(p.on?'checked':'')+(p.locked?' disabled':'')+
+' onchange="ptoggle(\''+esc(p.id)+'\',this)"> <b>'+esc(p.name)+'</b></label> <span class="d">'+esc(p.desc)+(p.locked?' (끌 수 없음)':'')+'</span></div>').join('');
+sum('plugin',r.items.length?'켜짐 '+r.items.filter(p=>p.on).length+' / '+r.items.length:'')}
+async function ptoggle(id,box){box.disabled=true;alert(await api('/api/plugin?id='+encodeURIComponent(id)+'&on='+(box.checked?1:0)));loadPlugins()}
+async function psearch(){var q=document.getElementById('pq').value,out=document.getElementById('presult');out.textContent='찾는 중…';
+const r=await (await fetch('/api/plugin_search?q='+encodeURIComponent(q),{method:'POST'})).json();
+out.innerHTML=r.error?esc(r.error):(r.items.length?r.items.map(p=>'<div class="pl"><b>'+esc(p.name)+'</b> <span class="d">'+esc(p.desc)+
+(p.security?' <b style="color:#c00">보안 문제: '+esc(p.security)+'</b>':'')+'</span> '+
+(p.installed?'<span class=on>설치됨</span>':(p.security?'':'<button onclick="pinstall(\''+esc(p.id)+'\')">설치</button>'))+
+' <a href="'+esc(p.url)+'" target=_blank>설명</a></div>').join(''):'찾은 것이 없습니다')}
+async function pinstall(id){if(confirm(id+' 플러그인을 설치할까요?\n여러 사람이 만든 코드라 키트가 내용을 검증하지 못합니다. 믿을 수 있는 것만 설치하세요.')){alert(await api('/api/plugin_install?id='+id));load()}}
 function openWiki(){window.open('http://'+listen.replace('0.0.0.0','127.0.0.1')+'/','_blank')}
 function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';'})}
 function dot(b){return b?'<span class=on>●</span>':'<span class=off>○</span>'}
 function sum(k,h){var e=document.getElementById('sum-'+k);if(e&&e.innerHTML!==h)e.innerHTML=h}
 function lastLine(log,pre){return log.filter(l=>pre.some(p=>l.startsWith(p))).pop()||''}
 function num(n){return n==null?'?':Number(n).toLocaleString()}
+let wasPlugin=false;
 async function load(){const s=await (await fetch('/api/status')).json();listen=s.listen;
+if(s.engine!==plEngine||(wasPlugin&&!s.running.plugin))loadPlugins();wasPlugin=s.running.plugin;
+document.getElementById('plog').textContent=s.plugin_log.join('');
 var en=s.engines[s.engine]||{};
 document.getElementById('st').innerHTML='엔진: <b>'+esc(s.engine_name)+'</b>'+(en.version?' '+esc(en.version):'')+' · '+
 (s.installed?'문서 '+num(s.docs)+'개':'아직 설치되지 않음 — 아래 \'엔진\' 칸에서 [설치]')+' · 디스크 여유 '+s.disk_free_gb+'GB'+
@@ -466,6 +525,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, PAGE, "text/html; charset=utf-8")
         if path == "/api/status":
             return self.send(200, json.dumps(status(), ensure_ascii=False), "application/json")
+        if path == "/api/plugins":
+            return self.send(200, json.dumps(plugin_list(), ensure_ascii=False), "application/json")
         self.send(404, "없음", "text/plain; charset=utf-8")
 
     def do_POST(self):
@@ -510,6 +571,17 @@ class Handler(BaseHTTPRequestHandler):
             msg = run_export(arg("to"))
         elif u.path == "/api/import":
             msg = run_import(arg("file"))
+        elif u.path == "/api/plugin":
+            msg = set_plugin(arg("id"), arg("on", "1") == "1")
+        elif u.path == "/api/plugin_install":
+            msg = run_plugin_install(arg("id"))
+        elif u.path == "/api/plugin_search":
+            try:
+                found = eng().search_plugins(arg("q"))
+                return self.send(200, json.dumps({"items": found}, ensure_ascii=False), "application/json")
+            except Exception as e:
+                return self.send(200, json.dumps({"items": [], "error": f"저장소에 묻지 못했습니다: {e}"},
+                                                 ensure_ascii=False), "application/json")
         else:
             return self.send(404, "{}", "application/json")
         self.send(200, json.dumps({"msg": msg}, ensure_ascii=False), "application/json")
@@ -556,6 +628,10 @@ def main():
         print("지난번 설정대로 위키를 다시 켭니다" + (" (공개 포함, 주소는 새로 바뀝니다)" if s.get("public") else ""),
               flush=True)
         start_wiki(open_browser=False)
+    if not WIN:  # 리눅스: kill 로 관리판을 끄면 위키 프로그램도 함께 끈다(따로 띄운 프로세스 묶음이라 저절로는 안 꺼짐)
+        def on_term(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, on_term)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

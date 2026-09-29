@@ -8,6 +8,7 @@
 """
 import calendar
 import html
+import json
 import os
 import re
 import secrets
@@ -112,6 +113,51 @@ class MediaWiki(Engine):
             f.write("<?php\n# 애니위키 관리판이 관리하는 확장 기능 목록(직접 고쳐도 됩니다)\n" +
                     "".join(f"wfLoadExtension( '{n}' );\n" for n in names))
         return names
+
+    plugin_note = ("MediaWiki 에 함께 들어 있는 확장 기능을 켜고 끕니다. 켜고 끌 때 공식 update 스크립트로 DB 를 맞춥니다(몇 초). "
+                   "VisualEditor·Scribunto 처럼 추가 설정이 필요한 확장은 켜도 바로 동작하지 않을 수 있습니다.")
+
+    def _ext_meta(self, n):
+        base = os.path.join(self.app, "extensions", n)
+        try:
+            j = json.load(open(os.path.join(base, "extension.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        desc = j.get("description", "")
+        key = j.get("descriptionmsg")
+        if key:
+            for lang in ("ko", "en"):
+                try:
+                    msgs = json.load(open(os.path.join(base, "i18n", f"{lang}.json"), encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if msgs.get(key):
+                    desc = re.sub(r"\[\[[^|\]]*\|?([^\]]*)\]\]|\[\S+ ([^\]]*)\]", lambda m: m.group(1) or m.group(2) or "", msgs[key])
+                    break
+        return {"name": j.get("name", n), "desc": html.unescape(re.sub(r"<[^>]+>", "", desc))}
+
+    def plugins(self):
+        on = set(self.enabled_extensions())
+        out = []
+        base = os.path.join(self.app, "extensions")
+        for n in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            m = self._ext_meta(n)
+            if m:
+                out.append({"id": n, "name": m["name"], "desc": m["desc"], "on": n in on, "locked": False})
+        return out
+
+    def set_plugin(self, pid, on, log=print):
+        if not self._ext_meta(pid):
+            raise ValueError("없는 확장 기능입니다")
+        old = self.enabled_extensions()
+        new = [n for n in old if n != pid] + ([pid] if on else [])
+        self.write_extensions(new)
+        try:
+            self.maint("update", "--quick", timeout=1800)
+        except RuntimeError as e:
+            self.write_extensions(old)  # 켜서 깨지면 되돌린다
+            raise RuntimeError(f"{pid} 를 켜지 못해 되돌렸습니다: {e}")
+        return f"{pid} 확장 기능을 {'켰' if on else '껐'}습니다"
 
     def command(self):
         return phpmod.server_command(self.php(), self.app, self.port)

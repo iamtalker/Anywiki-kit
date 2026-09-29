@@ -59,6 +59,17 @@ DokuWiki·MediaWiki·Markdown 은 설치할 때 관리자 계정(`admin`)과 비
 받을 곳과 해시는 `sources.json` 에 있습니다. DokuWiki·MediaWiki 는 Docker 가 없어도 이미지 층 파일만 받아 풉니다.
 동봉한 것: `assets/`(KaTeX·highlight.js 등 MIT/BSD, Material Icons Apache-2.0).
 
+## 플러그인
+
+관리판의 **플러그인** 칸에서 지금 엔진의 플러그인을 켜고 끕니다.
+
+- **DokuWiki**: 들어 있는 플러그인을 켜고 끄고, **DokuWiki 플러그인 저장소에서 찾아 설치**합니다. 저장소의 플러그인은 여러 사람이 만든 것이라
+  키트가 내용을 검증하지 못합니다(보안 문제가 알려진 것은 설치하지 않음). 믿을 수 있는 것만 설치하세요.
+- **MediaWiki**: 함께 들어 있는 확장 기능(Cite·ParserFunctions·SyntaxHighlight·CategoryTree·Math 등 34개)을 켜고 끕니다.
+- **Markdown (내장)**: 수식·코드 색칠. **openNAMU**: 없음.
+
+리눅스: `bash server/anywiki.sh plugin list`, `plugin on 이름`, `plugin off 이름`, `plugin search 낱말`, `plugin install 이름`(DokuWiki).
+
 ## 인터넷에 공개하려면
 
 - **간단히**: 관리판의 **인터넷에 공개 → [공개하기]**. 공유기 설정 없이 Cloudflare 임시 주소(https)가 생깁니다. 켤 때마다 주소가 바뀌고,

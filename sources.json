@@ -50,5 +50,8 @@
       "subdir": "var/www/html",
       "note": "Docker Hub 공식 이미지 mediawiki:1.46 의 프로그램 층(확장 기능 동봉)"
     }
+  },
+  "plugin_repos": {
+    "dokuwiki": "https://www.dokuwiki.org/lib/plugins/pluginrepo/api.php"
   }
 }

@@ -45,6 +45,9 @@ try:
     check(e.count() == 3, f"문서 수 {e.count()}")
     check(e.get("대문").text == DOCS["대문"], "읽기")
     check([p.title for p in e.changes_since("2026-08-31 00:00:00")] != [], "changes_since")
+    check({p["id"] for p in e.plugins() if p["on"]} == {"katex", "highlight"}, "마크다운 기본 플러그인")
+    e.set_plugin("katex", False)
+    check(not next(p for p in e.plugins() if p["id"] == "katex")["on"], "마크다운 플러그인 끄기")
 
     for fmt in transfer.FORMATS:
         out = os.path.join(root, "export", f"t-{fmt}{transfer.EXT[fmt]}")
@@ -86,6 +89,61 @@ try:
         d = engines.get("dokuwiki", root)
         check(n == 3 and d.count() == 4, f"(설치 때 넣은 start + 3) DokuWiki 로 바꾸기 {n} {d.count()}")
         check("굵게" in d.get("대문").text, "DokuWiki 본문")
+        # 플러그인: 동봉 플러그인 끄고 켜기, 꼭 필요한 것은 못 끔, 가짜 저장소에서 찾아 설치
+        check(d.set_plugin("styling", False) and not next(p for p in d.plugins() if p["id"] == "styling")["on"], "끄기")
+        d.set_plugin("styling", True)
+        try:
+            d.set_plugin("acl", False)
+            check(False, "acl 을 끌 수 있으면 안 됨")
+        except ValueError:
+            pass
+        import io
+        import json as _json
+        import threading
+        import zipfile
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("dokuwiki-plugin-hello-master/plugin.info.txt", "base hello\nname Hello\ndesc 인사\n")
+            z.writestr("dokuwiki-plugin-hello-master/syntax.php", "<?php\n")
+        evil = io.BytesIO()
+        with zipfile.ZipFile(evil, "w") as z:
+            z.writestr("../../escape.txt", "x")
+        files = {"/hello.zip": buf.getvalue(), "/evil.zip": evil.getvalue()}
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                if self.path.startswith("/api.php"):
+                    port = self.server.server_address[1]
+                    body = _json.dumps([
+                        {"plugin": "hello", "name": "Hello", "description": "인사", "downloadurl": f"http://127.0.0.1:{port}/hello.zip"},
+                        {"plugin": "evil", "name": "Evil", "downloadurl": f"http://127.0.0.1:{port}/evil.zip"},
+                        {"plugin": "bad", "name": "Bad", "securityissue": "XSS", "downloadurl": f"http://127.0.0.1:{port}/hello.zip"},
+                    ]).encode()
+                else:
+                    body = files.get(self.path, b"")
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        os.environ["ANYWIKI_DOKU_REPO"] = f"http://127.0.0.1:{srv.server_address[1]}/api.php"
+        found = d.search_plugins("hello")
+        check(any(x["id"] == "hello" for x in found), f"찾기 {found}")
+        d.install_plugin("hello", lambda m: None)
+        check(any(p["id"] == "hello" for p in d.plugins()), "설치한 플러그인이 목록에")
+        for bad, why in (("evil", "위험한 경로"), ("bad", "보안 문제")):
+            try:
+                d.install_plugin(bad, lambda m: None)
+                check(False, f"{bad} 가 설치되면 안 됨")
+            except ValueError as ex:
+                check(why in str(ex), f"{bad}: {ex}")
+        check(not os.path.exists(os.path.join(d.dir, "lib", "escape.txt")), "압축 밖으로 풀림")
+        srv.shutdown()
     else:
         print("(DokuWiki 바꾸기 시험은 건너뜀: ANYWIKI_DOKU_LAYER 와 php 필요)")
 finally:

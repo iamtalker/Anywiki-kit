@@ -85,8 +85,21 @@ class Engine:
         return sum(1 for _ in self.titles())
 
     # ---- 플러그인(엔진마다)
+    plugin_search = False   # 저장소에서 찾아 설치할 수 있나(DokuWiki)
+    plugin_note = "이 엔진은 키트에서 켜고 끌 플러그인이 없습니다."
+
     def plugins(self):
+        """[{id, name, desc, on, locked}] — locked 는 엔진이 꼭 필요로 해서 끌 수 없는 것."""
         return []
+
+    def set_plugin(self, pid, on, log=print):
+        raise ValueError("이 엔진은 플러그인이 없습니다")
+
+    def search_plugins(self, q):
+        return []
+
+    def install_plugin(self, pid, log=print):
+        raise ValueError("이 엔진은 저장소에서 플러그인을 받지 않습니다")
 
     def info(self):
         return {}

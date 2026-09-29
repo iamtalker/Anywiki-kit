@@ -251,3 +251,150 @@ class DokuWiki(Engine):
             return {"version": open(os.path.join(self.dir, "VERSION"), encoding="utf-8").read().strip()}
         except OSError:
             return {}
+
+    # ---- 플러그인
+    plugin_search = True
+    plugin_note = ("DokuWiki 에 들어 있는 플러그인은 켜고 끌 수 있고, DokuWiki 플러그인 저장소에서 찾아 설치할 수 있습니다. "
+                   "저장소의 플러그인은 여러 사람이 만든 것이라 키트가 내용을 검증하지 못합니다. 보안 문제가 알려진 것은 설치하지 않습니다.")
+
+    def _plugin_state(self):
+        """plugins.local.php 의 켜고 끈 값, plugins.required.php 의 꼭 필요한 것."""
+        def read(name):
+            try:
+                txt = open(os.path.join(self.dir, "conf", name), encoding="utf-8").read()
+            except OSError:
+                return {}
+            return {k: v == "1" for k, v in re.findall(r"\$plugins\['([^']+)'\]\s*=\s*(\d)", txt)}
+        return read("plugins.local.php"), read("plugins.required.php")
+
+    def plugins(self):
+        local, req = self._plugin_state()
+        base = os.path.join(self.dir, "lib", "plugins")
+        out = []
+        for pid in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            info = os.path.join(base, pid, "plugin.info.txt")
+            if not os.path.exists(info):
+                continue
+            meta = dict(re.findall(r"^(\w+)\s+(.+)$", open(info, encoding="utf-8", errors="replace").read(), re.M))
+            out.append({"id": pid, "name": meta.get("name", pid), "desc": meta.get("desc", ""),
+                        "on": local.get(pid, True), "locked": pid in req})
+        return out
+
+    def set_plugin(self, pid, on, log=print):
+        local, req = self._plugin_state()
+        if not os.path.exists(os.path.join(self.dir, "lib", "plugins", pid, "plugin.info.txt")):
+            raise ValueError("없는 플러그인입니다")
+        if pid in req:
+            raise ValueError("DokuWiki 가 꼭 필요로 하는 플러그인이라 끌 수 없습니다")
+        local[pid] = bool(on)
+        path = os.path.join(self.dir, "conf", "plugins.local.php")
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            f.write("<?php\n/* 애니위키 관리판과 DokuWiki 확장 관리자가 함께 쓰는 플러그인 켜고 끄기 */\n" +
+                    "".join(f"$plugins['{k}'] = {int(v)};\n" for k, v in sorted(local.items())))
+        os.replace(path + ".tmp", path)
+        self._touch_conf()
+        return f"{pid} 플러그인을 {'켰' if on else '껐'}습니다"
+
+    def _touch_conf(self):
+        """설정이 바뀐 것을 DokuWiki 에 알린다(캐시 무효화)."""
+        try:
+            os.utime(os.path.join(self.dir, "conf", "local.php"))
+        except OSError:
+            pass
+
+    def _repo(self):
+        import fetch
+        return os.environ.get("ANYWIKI_DOKU_REPO") or \
+            fetch.sources(self.root).get("plugin_repos", {}).get("dokuwiki", "https://www.dokuwiki.org/lib/plugins/pluginrepo/api.php")
+
+    def _api(self, **q):
+        import fetch
+        url = self._repo() + "?" + urllib.parse.urlencode(dict(q, fmt="json"), doseq=True)
+        with fetch._get(url, timeout=30) as r:
+            return json.loads(r.read(4 << 20).decode("utf-8"))
+
+    @staticmethod
+    def _entry(d):
+        pid = str(d.get("plugin", ""))
+        return {"id": pid, "name": d.get("name") or pid, "desc": d.get("description", ""),
+                "updated": d.get("lastupdate", ""), "popularity": d.get("popularity", 0),
+                "security": d.get("securityissue", "") or d.get("securitywarning", ""),
+                "download": d.get("downloadurl", ""), "url": f"https://www.dokuwiki.org/plugin:{pid}",
+                "template": pid.startswith("template:")}
+
+    def search_plugins(self, q):
+        got = self._api(q=q) if q else self._api(cat="", order="popularity")
+        items = got if isinstance(got, list) else list(got.values()) if isinstance(got, dict) else []
+        have = {p["id"] for p in self.plugins()}
+        out = []
+        for d in items:
+            e = self._entry(d)
+            if e["id"] and not e["template"]:
+                e["installed"] = e["id"] in have
+                out.append(e)
+        return out[:50]
+
+    def install_plugin(self, pid, log=print):
+        """저장소에서 플러그인 하나를 받아 lib/plugins/<id>/ 에 넣는다."""
+        import fetch
+        import shutil
+        import tarfile
+        import tempfile
+        import zipfile
+        if not re.fullmatch(r"[a-z0-9_]+", pid or ""):
+            raise ValueError("플러그인 이름이 올바르지 않습니다")
+        got = self._api(**{"ext[]": [pid]})
+        items = got if isinstance(got, list) else list(got.values()) if isinstance(got, dict) else []
+        e = next((self._entry(d) for d in items if str(d.get("plugin")) == pid), None)
+        if not e or not e["download"]:
+            raise ValueError("저장소에 그 플러그인이 없거나 받을 주소가 없습니다")
+        if e["security"]:
+            raise ValueError(f"보안 문제가 알려진 플러그인이라 설치하지 않습니다: {e['security']}")
+        if not e["download"].startswith("https://") and not os.environ.get("ANYWIKI_DOKU_REPO"):  # 시험용 저장소만 http
+            raise ValueError("https 가 아닌 주소에서는 받지 않습니다")
+        tmp = tempfile.mkdtemp(prefix="dwplugin-", dir=self.dir)
+        try:
+            arc = os.path.join(tmp, "plugin.bin")
+            log(f"{pid} 받는 중: {e['download']}")
+            fetch.download(e["download"], arc, log=log)
+            if os.path.getsize(arc) > 50 << 20:
+                raise ValueError("파일이 너무 큽니다(50MB 넘음)")
+            out = os.path.join(tmp, "x")
+            os.makedirs(out)
+            real = os.path.realpath(out)
+
+            def safe(name):
+                dest = os.path.realpath(os.path.join(out, name))
+                if not (dest == real or dest.startswith(real + os.sep)):
+                    raise ValueError(f"압축 파일에 위험한 경로가 있습니다: {name}")
+                return dest
+            if zipfile.is_zipfile(arc):
+                with zipfile.ZipFile(arc) as z:
+                    for n in z.namelist():
+                        safe(n)
+                    z.extractall(out)
+            else:
+                with tarfile.open(arc) as t:
+                    members = [m for m in t.getmembers() if m.isfile() or m.isdir()]
+                    for m in members:
+                        safe(m.name)
+                    t.extractall(out, members=members)
+            src = None
+            for dp, _, files in os.walk(out):
+                if "plugin.info.txt" in files:
+                    if src is None or len(dp) < len(src):
+                        src = dp
+            if not src:
+                raise ValueError("DokuWiki 플러그인이 아닙니다(plugin.info.txt 없음)")
+            dest = os.path.join(self.dir, "lib", "plugins", pid)
+            old = dest + ".old"
+            if os.path.exists(dest):
+                shutil.rmtree(old, ignore_errors=True)
+                os.replace(dest, old)
+            shutil.move(src, dest)
+            shutil.rmtree(old, ignore_errors=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self._touch_conf()
+        log(f"{pid} 플러그인을 설치했습니다")
+        return f"{pid} 플러그인을 설치했습니다"

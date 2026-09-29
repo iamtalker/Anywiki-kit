@@ -8,9 +8,14 @@ from .base import Engine, Page
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+PLUGINS = {"katex": ("수식(KaTeX)", "수식을 그려 보여 줍니다(동봉 파일, 인터넷 불필요)."),
+           "highlight": ("코드 색칠(highlight.js)", "코드 블록에 언어별 색을 입힙니다(동봉 파일).")}
+
+
 class MarkdownEngine(Engine):
     name = "markdown"
     syntax = "markdown"
+    plugin_note = "내장 엔진의 부가 기능입니다. 켜고 끄면 바로 적용됩니다(페이지 새로고침)."
 
     def store(self):
         sys.path.insert(0, SCRIPTS)
@@ -28,8 +33,9 @@ class MarkdownEngine(Engine):
             pw = secrets.token_urlsafe(9)
             mdwiki.set_password(st, pw)
             st.set_conf("edit", "admin")
+            st.set_conf("plugins", '["katex", "highlight"]')
             with open(os.path.join(self.dir, "관리자 비밀번호.txt"), "w", encoding="utf-8") as f:
-                f.write(pw + "\n")
+                f.write(f"비밀번호: {pw}\n(위키의 [로그인]에서 이 비밀번호만 넣으면 됩니다)\n")
             log(f"관리자 비밀번호: {pw}  (wikis/markdown/관리자 비밀번호.txt 에도 적어 둠)")
 
     def command(self):
@@ -71,6 +77,25 @@ class MarkdownEngine(Engine):
         titles = [t for (t,) in db.execute("select distinct title from rev where date > ?", (ts,))]
         db.close()
         return [p for p in (self.get(t) for t in titles) if p]
+
+    def _on(self):
+        import json
+        try:
+            return json.loads(self.store().conf("plugins", "[]") or "[]")
+        except ValueError:
+            return []
+
+    def plugins(self):
+        on = self._on()
+        return [{"id": k, "name": n, "desc": d, "on": k in on, "locked": False} for k, (n, d) in PLUGINS.items()]
+
+    def set_plugin(self, pid, on, log=print):
+        import json
+        if pid not in PLUGINS:
+            raise ValueError("알 수 없는 기능입니다")
+        cur = [p for p in self._on() if p != pid] + ([pid] if on else [])
+        self.store().set_conf("plugins", json.dumps(cur))
+        return f"{PLUGINS[pid][0]} 을(를) {'켰' if on else '껐'}습니다"
 
     def admin_password(self):
         try:

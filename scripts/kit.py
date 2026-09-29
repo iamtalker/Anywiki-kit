@@ -4,6 +4,7 @@
     python kit.py run-engine          # 지금 엔진을 켠다(이 프로세스가 엔진이 됨: 리눅스·Docker 용)
     python kit.py engine [엔진]       # 지금 엔진 보기 / 바꾸기(데이터는 옮기지 않음. 옮기려면 transfer.py switch)
     python kit.py info                # 엔진·문서 수·관리자 계정 (JSON)
+    python kit.py plugin list | on 이름 | off 이름 | search 낱말 | install 이름   # 지금 엔진의 플러그인
 엔진: opennamu · markdown · dokuwiki · mediawiki
 """
 import json
@@ -114,6 +115,30 @@ def info():
     return out
 
 
+def plugin(args):
+    e = engines.get(current(), ROOT)
+    if not e.installed():
+        raise SystemExit("엔진이 아직 설치되지 않았습니다")
+    act = args[0] if args else "list"
+    try:
+        if act == "list":
+            for p in e.plugins():
+                print(f"{'●' if p['on'] else '○'} {p['id']:<24} {p['name']}{' (끌 수 없음)' if p['locked'] else ''}")
+            print(e.plugin_note)
+        elif act in ("on", "off") and len(args) > 1:
+            print(e.set_plugin(args[1], act == "on", lambda m: print(m, flush=True)))
+        elif act == "search":
+            for p in e.search_plugins(" ".join(args[1:])):
+                print(f"{p['id']:<24} {p['name']} — {p['desc'][:80]}{' [설치됨]' if p.get('installed') else ''}"
+                      f"{' [보안 문제: ' + p['security'] + ']' if p.get('security') else ''}")
+        elif act == "install" and len(args) > 1:
+            e.install_plugin(args[1], lambda m: print(m, flush=True))
+        else:
+            print(__doc__)
+    except (ValueError, RuntimeError) as ex:
+        raise SystemExit(f"실패: {ex}")
+
+
 def main():
     migrate()
     if len(sys.argv) < 2:
@@ -141,6 +166,8 @@ def main():
         print(current())
     elif cmd == "info":
         print(json.dumps(info(), ensure_ascii=False, indent=2))
+    elif cmd == "plugin":
+        plugin(sys.argv[2:])
     else:
         print(__doc__)
 
