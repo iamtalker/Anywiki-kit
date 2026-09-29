@@ -52,11 +52,15 @@
 - 플러그인: `Engine.plugins()/set_plugin()/search_plugins()/install_plugin()`, `plugin_search`·`plugin_note`. 관리판 `/api/plugins`(GET)·`/api/plugin`·
   `/api/plugin_search`·`/api/plugin_install`(→ `kit.py plugin install`, plugin.log). DokuWiki 저장소 주소는 `sources.json` 의 `plugin_repos`,
   시험 때는 `ANYWIKI_DOKU_REPO`(이때만 http 허용). 진짜 저장소(dokuwiki.org)는 이 환경에서 막혀 있어 API 모양(`fmt=json`, `q`, `ext[]`)은 문서 기준이다(주인 PC 에서 확인 필요).
+- 공동위키 `scripts/cowiki.py <root> run|id|name|add|remove|list|sync`: 창구 HTTP(127.0.0.1:3002, `/cowiki/hello`, `/cowiki/changes?since=`),
+  저장소 `wikis/_cowiki/cowiki.db`(members·journal(문서마다 마지막 판의 AWM)·applied(받아 넣은 판의 해시 — 다시 퍼뜨리지 않기)·meta).
+  요청 서명 = `canonical({from,to,t,path})`, 응답 서명 = 본문 전체(`to`·`since` 포함). 엔진이 바뀌면 그때부터의 편집만 나눈다.
+  관리판은 `cowiki` + `cowiki_tunnel`(3002 전용 cloudflared) 프로세스, 설정 `cowiki_on`. DHT 는 `dht.py`(salt `anywiki-cowiki`), 시험은 `tests/fake_dht.py`.
 - 요구 명세: `docs/SPEC.md`(주인이 요구한 것 목록 + 구현 결정). 요구가 늘면 여기에 먼저 적는다.
 
 ## 4. 시험하는 법
 
-- `python3 tests/run_all.py`: `test_pack.py`(openNAMU 형식 내보내기·가져오기), `test_wikiconv.py`(형식별 왕복·까다로운 글자),
+- `python3 tests/run_all.py`: `test_cowiki.py`(두 위키 서로 등록·한쪽만 등록 거절·주고받기·되퍼뜨리지 않기·마지막 판·미래 시각·위조·가짜 DHT, `ANYWIKI_DOKU_LAYER` 가 있으면 B 는 DokuWiki), `test_pack.py`(openNAMU 형식 내보내기·가져오기), `test_wikiconv.py`(형식별 왕복·까다로운 글자),
   `test_engines.py`(마크다운 엔진, 4형식 내보내기→가져오기; `ANYWIKI_DOKU_LAYER=받아둔.tgz` 와 php 가 있으면 DokuWiki 바꾸기까지).
 - `python3 -m pyflakes scripts/*.py scripts/engines/*.py scripts/wikiconv/*.py tests/*.py`, `bash -n server/*.sh docker/entrypoint.sh`.
 - 실제 동작: 임시 폴더에 `scripts assets server docker sources.json` 을 복사하고, 받아 둔 층 파일(`tools/sha256_….tgz`)도 복사해 두면 다시 받지 않는다.
@@ -85,13 +89,20 @@
   파이썬 표준 라이브러리만 쓰는 원칙 4, 그리고 나무마크를 pandoc 이 모름.)
 - [완료 0.4] 엔진별 플러그인: DokuWiki(플러그인 저장소 API + zip 설치, 동봉 플러그인 켜기/끄기), MediaWiki(동봉 확장 켜기/끄기 = `write_extensions` + `update`),
   Markdown 내장(katex·highlight 켜기/끄기), openNAMU(없음). 가짜 저장소 서버로 시험.
-- [ ] 0.5 공동위키: 서로 ID 를 등록한 위키끼리 편집 주고받기(유어위키의 Ed25519·DHT·터널 창구 재사용, 문서는 AWM 으로, 엔진이 달라도 됨).
+- [완료 0.5] 공동위키: 서로 ID 를 등록한 위키끼리 편집 주고받기(유어위키의 Ed25519·DHT·터널 창구 재사용, 문서는 AWM 으로, 엔진이 달라도 됨).
   마지막에 쓴 판이 이김, 남에게서 받은 판은 다시 퍼뜨리지 않음.
 - [ ] DokuWiki·MediaWiki 보안판 알림("새 판이 있다", 사용자가 버튼으로 올림 — 원칙 1).
 - [ ] Windows 에서 실제 설치·켜기 확인, 특히 휴대용 PHP(주인 몫).
 - [ ] GitHub 릴리스 만들기: 태그 v0.2·v0.3 에서(주인 몫).
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
+
+### 2026-09-29 — 0.5 공동위키
+- `cowiki.py`, 관리판 공동위키 칸, 리눅스 `COWIKI`·`COWIKI_URL`·`anywiki.sh cowiki`, Docker `COWIKI`. `dht.py`·`ed25519.py` 유어위키에서 가져옴.
+- 확인: `test_cowiki.py`(Markdown↔Markdown, Markdown↔DokuWiki), 리눅스 스크립트로 켠 A(Markdown)와 B(DokuWiki) 사이 실제 주고받기,
+  관리판 화면. 이 환경에서는 trycloudflare 가 403, DHT(UDP)가 막혀 있어 실제 인터넷 경로는 확인하지 못했다(주인 PC 에서 확인 필요).
+- 주인의 요구 중 치명적일 수 있는 점(주인에게 알림): 회원은 내 위키의 어떤 문서든 덮어쓸 수 있다(마지막 판 우선). 믿는 위키만 등록해야 한다.
+  지우기는 옮기지 않으므로 지운 문서가 상대에게서 다시 올 수 있다.
 
 ### 2026-09-29 — 0.4 엔진별 플러그인
 - DokuWiki(동봉 켜고 끄기 + 저장소 설치), MediaWiki(동봉 확장 34개 켜고 끄기), Markdown(수식·코드 색칠). 관리판 플러그인 칸, `kit.py plugin`, `anywiki.sh plugin`.

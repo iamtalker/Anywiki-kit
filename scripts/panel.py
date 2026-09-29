@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 3100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.4"
+KIT_VERSION = "0.5"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3", ".xml", ".xml.gz", ".zip", ".md")
@@ -292,6 +292,70 @@ def run_plugin_install(pid):
     return f"{pid} 설치를 시작했습니다"
 
 
+# ---------------------------------------------------------------- 공동위키
+def cowiki_start():
+    if alive("cowiki"):
+        return "이미 켜져 있습니다"
+    if not eng().installed():
+        return "먼저 엔진을 설치하세요"
+    open(os.path.join(ROOT, "cowiki.log"), "w").close()
+    open(os.path.join(ROOT, "cowiki-tunnel.log"), "w").close()
+    spawn("cowiki", [sys.executable, os.path.join(SCRIPTS, "cowiki.py"), ROOT, "run",
+                     "--tunnel-log", os.path.join(ROOT, "cowiki-tunnel.log")], "cowiki.log")
+    try:  # 공동위키 전용 임시 공개 주소(위키 자체는 공개하지 않아도 된다)
+        import cloudflared
+        exe = cloudflared.ensure()
+        spawn("cowiki_tunnel", [exe, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:3002"], "cowiki-tunnel.log")
+    except Exception as e:
+        return f"공동위키를 켰지만 터널 프로그램을 받지 못했습니다({e}). 회원에게서 받기만 합니다"
+    return "공동위키를 켰습니다. 잠시 뒤 창구 주소가 생기면 회원들과 주고받습니다"
+
+
+def cowiki_stop():
+    for n in ("cowiki_tunnel", "cowiki"):
+        stop(n)
+    return "공동위키를 껐습니다"
+
+
+def cowiki_status():
+    import cowiki
+    try:
+        s = cowiki.status(ROOT)
+    except Exception as e:
+        return {"error": str(e)}
+    s["on"] = alive("cowiki")
+    s["tunnel"] = alive("cowiki_tunnel")
+    s["log"] = tail("cowiki.log", 6)
+    if not s["on"]:
+        s["my_url"] = ""
+    elif not s["tunnel"] and not s["my_url"]:
+        bad = [ln for ln in tail("cowiki-tunnel.log", 30) if "failed" in ln or "ERR" in ln]
+        s["tunnel_error"] = (bad[-1].strip()[:200] if bad else "터널이 멈췄습니다")
+    return s
+
+
+def cowiki_do(action, arg):
+    import cowiki
+    st = cowiki.State(ROOT)
+    try:
+        if action == "name":
+            st.set_meta("name", arg("name").strip()[:60] or "애니위키")
+            return "이름을 바꿨습니다"
+        if action == "add":
+            st.add(arg("id"), arg("name"), arg("url"))
+            st.set_meta("sync_now", "1")
+            return "등록했습니다. 상대도 내 ID 를 등록해야 이어집니다"
+        if action == "remove":
+            st.remove(arg("id").lower())
+            return "지웠습니다"
+        if action == "sync":
+            st.set_meta("sync_now", "1")
+            return "곧 주고받습니다" if alive("cowiki") else "먼저 공동위키를 켜세요"
+    except ValueError as e:
+        return str(e)
+    return "알 수 없는 요청입니다"
+
+
 def tail(name, n=12):
     try:
         with open(os.path.join(ROOT, name), encoding="utf-8", errors="replace") as f:
@@ -384,6 +448,21 @@ code.pw{background:#fff4e0;padding:2px 6px;border-radius:4px}
 <div id="psearch" hidden style="margin:8px 0"><input id="pq" placeholder="저장소에서 찾기 (예: wrap)" onkeydown="if(event.key==='Enter')psearch()">
 <button onclick="psearch()">찾기</button><div id="presult"></div><pre id="plog"></pre></div>
 <div id="plist" style="max-height:360px;overflow:auto"></div></details>
+<details class="sec" id="sec-co"><summary><h2>공동위키</h2><span class="sum" id="sum-co"></span></summary>
+<p class="note">서로의 ID 를 등록한 위키끼리 편집을 자동으로 주고받습니다. <b>양쪽이 모두</b> 상대의 ID 를 등록해야 이어집니다.
+엔진이 달라도 됩니다(공용 언어로 통역). 각 위키는 자기 위키에서 고친 문서만 주고, 받은 문서는 다시 퍼뜨리지 않습니다.
+같은 문서는 마지막에 고친 판이 이깁니다. 지우기는 옮기지 않습니다.
+공동위키 전용 임시 주소를 따로 만들므로 위키 자체를 공개하지 않아도 됩니다.</p>
+<div>내 ID: <input id="coid" readonly style="width:100%;font-family:monospace;font-size:12px" onclick="this.select()">
+<button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('coid').value).then(()=>alert('복사했습니다'))">ID 복사</button>
+내 위키 이름: <input id="coname" style="width:140px"> <button onclick="coname()">이름 저장</button></div>
+<div style="margin:6px 0"><button onclick="coOn(1)">공동위키 켜기</button><button onclick="coOn(0)">끄기</button>
+<button onclick="act2('cowiki_sync')">지금 주고받기</button></div>
+<div id="costate" class="note"></div>
+<h3 style="font-size:14px;margin:12px 0 4px">회원</h3><div id="comembers"></div>
+<div style="margin-top:8px"><input id="coaddid" placeholder="상대의 ID (64자리)" style="width:100%;font-family:monospace;font-size:12px">
+<input id="coaddname" placeholder="이름(선택)" style="width:120px"> <input id="coaddurl" placeholder="주소(선택, 고정 주소가 있을 때만)" style="width:260px">
+<button onclick="coadd()">등록</button></div><pre id="colog"></pre></details>
 <details class="sec" id="sec-color"><summary><h2>위키 색</h2><span class="sum" id="sum-color"></span></summary>
 <span id="swatch" style="display:inline-block;width:28px;height:28px;border-radius:6px;vertical-align:middle;border:1px solid #ccc"></span>
 <select id="preset" onchange="if(this.value)setColor(this.value)">
@@ -448,14 +527,29 @@ out.innerHTML=r.error?esc(r.error):(r.items.length?r.items.map(p=>'<div class="p
 (p.installed?'<span class=on>설치됨</span>':(p.security?'':'<button onclick="pinstall(\''+esc(p.id)+'\')">설치</button>'))+
 ' <a href="'+esc(p.url)+'" target=_blank>설명</a></div>').join(''):'찾은 것이 없습니다')}
 async function pinstall(id){if(confirm(id+' 플러그인을 설치할까요?\n여러 사람이 만든 코드라 키트가 내용을 검증하지 못합니다. 믿을 수 있는 것만 설치하세요.')){alert(await api('/api/plugin_install?id='+id));load()}}
+const CO_ST={ok:'<span class=on>이어짐</span>',not_member:'상대가 아직 내 ID 를 등록하지 않았습니다',no_url:'상대의 주소를 찾는 중(상대가 공동위키를 켜 두어야 합니다)','':'아직 물어보지 않음'};
+async function loadCo(){const c=await (await fetch('/api/cowiki')).json();if(c.error){document.getElementById('costate').textContent=c.error;return}
+var ci=document.getElementById('coid');if(ci.value!==c.id)ci.value=c.id;var cn=document.getElementById('coname');if(document.activeElement!==cn)cn.value=c.name;
+document.getElementById('costate').innerHTML=(c.on?'<b class=on>켜짐</b>':'꺼짐')+(c.on?' · 창구 주소: '+(c.my_url?esc(c.my_url):(c.tunnel_error?'<b>만들지 못했습니다</b> ('+esc(c.tunnel_error)+') — 회원에게서 받기만 합니다':'만드는 중…')):'')+
+' · 내가 나눈 문서 '+num(c.shared)+'개 · 받아 넣은 문서 '+num(c.applied)+'개';
+document.getElementById('comembers').innerHTML=c.members.length?c.members.map(m=>'<div class="pl"><b>'+esc(m.name||'(이름 없음)')+'</b> <span class="d" style="font-family:monospace">'+esc(m.id.slice(0,16))+'…</span> '+
+'<span class="d">'+(CO_ST[m.status]!==undefined?CO_ST[m.status]:esc(m.status))+(m.last_ok?' · 마지막 '+new Date(m.last_ok*1000).toLocaleString():'')+(m.got?' · 받은 문서 '+m.got:'')+'</span> '+
+'<button onclick="coremove(\''+m.id+'\')">지우기</button></div>').join(''):'<span class=note>아직 없습니다. 상대의 ID 를 받아 아래에 등록하세요.</span>';
+document.getElementById('colog').textContent=(c.log||[]).join('');
+sum('co',(c.on?'<span class=on>켜짐</span>':'꺼짐')+' · 회원 '+c.members.length+'명'+(c.members.length?' (이어짐 '+c.members.filter(m=>m.status==='ok').length+')':''))}
+async function coOn(on){alert(await api('/api/cowiki_on?on='+on));loadCo()}
+async function coname(){alert(await api('/api/cowiki_name?name='+encodeURIComponent(document.getElementById('coname').value)));loadCo()}
+async function coadd(){var q='id='+encodeURIComponent(document.getElementById('coaddid').value.trim())+'&name='+encodeURIComponent(document.getElementById('coaddname').value)+'&url='+encodeURIComponent(document.getElementById('coaddurl').value.trim());
+var m=await api('/api/cowiki_add?'+q);alert(m);if(m.startsWith('등록')){['coaddid','coaddname','coaddurl'].forEach(i=>document.getElementById(i).value='')}loadCo()}
+async function coremove(id){if(confirm('이 회원을 지울까요? 더는 주고받지 않습니다(이미 받은 문서는 남습니다).')){alert(await api('/api/cowiki_remove?id='+id));loadCo()}}
 function openWiki(){window.open('http://'+listen.replace('0.0.0.0','127.0.0.1')+'/','_blank')}
 function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';'})}
 function dot(b){return b?'<span class=on>●</span>':'<span class=off>○</span>'}
 function sum(k,h){var e=document.getElementById('sum-'+k);if(e&&e.innerHTML!==h)e.innerHTML=h}
 function lastLine(log,pre){return log.filter(l=>pre.some(p=>l.startsWith(p))).pop()||''}
 function num(n){return n==null?'?':Number(n).toLocaleString()}
-let wasPlugin=false;
-async function load(){const s=await (await fetch('/api/status')).json();listen=s.listen;
+let wasPlugin=false,coTick=0;
+async function load(){if(coTick++%3===0)loadCo();const s=await (await fetch('/api/status')).json();listen=s.listen;
 if(s.engine!==plEngine||(wasPlugin&&!s.running.plugin))loadPlugins();wasPlugin=s.running.plugin;
 document.getElementById('plog').textContent=s.plugin_log.join('');
 var en=s.engines[s.engine]||{};
@@ -525,6 +619,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, PAGE, "text/html; charset=utf-8")
         if path == "/api/status":
             return self.send(200, json.dumps(status(), ensure_ascii=False), "application/json")
+        if path == "/api/cowiki":
+            return self.send(200, json.dumps(cowiki_status(), ensure_ascii=False), "application/json")
         if path == "/api/plugins":
             return self.send(200, json.dumps(plugin_list(), ensure_ascii=False), "application/json")
         self.send(404, "없음", "text/plain; charset=utf-8")
@@ -571,6 +667,12 @@ class Handler(BaseHTTPRequestHandler):
             msg = run_export(arg("to"))
         elif u.path == "/api/import":
             msg = run_import(arg("file"))
+        elif u.path == "/api/cowiki_on":
+            on = arg("on", "1") == "1"
+            remember(cowiki_on=on)
+            msg = cowiki_start() if on else cowiki_stop()
+        elif u.path.startswith("/api/cowiki_"):
+            msg = cowiki_do(u.path[len("/api/cowiki_"):], arg)
         elif u.path == "/api/plugin":
             msg = set_plugin(arg("id"), arg("on", "1") == "1")
         elif u.path == "/api/plugin_install":
@@ -594,7 +696,7 @@ def cleanup_leftovers():
     ps = ("$root = '" + ROOT.replace("'", "''") + "'; "
           "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne " + str(os.getpid()) + " -and "
           "$_.ExecutablePath -and $_.ExecutablePath.StartsWith($root) -and "
-          "$_.Name -in @('main.amd64.exe','python.exe','cloudflared.exe','php.exe') } | "
+          "$_.Name -in @('main.amd64.exe','python.exe','pythonw.exe','cloudflared.exe','php.exe') } | "
           "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], creationflags=NO_WINDOW,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -628,6 +730,9 @@ def main():
         print("지난번 설정대로 위키를 다시 켭니다" + (" (공개 포함, 주소는 새로 바뀝니다)" if s.get("public") else ""),
               flush=True)
         start_wiki(open_browser=False)
+    if s.get("cowiki_on") and eng().installed():
+        print("지난번 설정대로 공동위키를 켭니다", flush=True)
+        cowiki_start()
     if not WIN:  # 리눅스: kill 로 관리판을 끄면 위키 프로그램도 함께 끈다(따로 띄운 프로세스 묶음이라 저절로는 안 꺼짐)
         def on_term(*_):
             raise KeyboardInterrupt
@@ -637,6 +742,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        cowiki_stop()
         stop_wiki()
 
 

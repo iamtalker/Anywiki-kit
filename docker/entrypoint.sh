@@ -35,6 +35,15 @@ python3 scripts/kit.py info | grep -E '"(docs|admin)"' || true
 [ "${UPDATE_NOTICE:-on}" = on ] && python3 scripts/update_check.py --quiet || true   # 새 판이 있을 때만 한 줄
 
 python3 scripts/kit.py run-engine &
+if [ "${COWIKI:-off}" = on ]; then   # 공동위키: 고정 주소(COWIKI_URL, 3002번을 열어 둠)가 없으면 Cloudflare 임시 주소
+  if [ -n "${COWIKI_URL:-}" ]; then
+    python3 scripts/cowiki.py /kit run --listen 0.0.0.0:3002 --self-url "$COWIKI_URL" &
+  else
+    python3 scripts/cowiki.py /kit run --tunnel-log /tmp/cowiki-tunnel.log &
+    CF=$(python3 scripts/cloudflared.py) && "$CF" tunnel --no-autoupdate --url http://127.0.0.1:3002 > /tmp/cowiki-tunnel.log 2>&1 &
+  fi
+  echo "== 공동위키 내 ID: $(python3 scripts/cowiki.py /kit id)  (회원 등록: docker compose exec anywiki python3 scripts/cowiki.py /kit add ID 이름)"
+fi
 echo "== 애니위키($ENGINE): http://<서버 주소>:${LISTEN##*:}"
 if [ "$ENGINE" = opennamu ]; then
   exec python3 scripts/offline_proxy.py assets --listen "$LISTEN" --upstream 127.0.0.1:3001 --wiki-db wikis/opennamu/data.db

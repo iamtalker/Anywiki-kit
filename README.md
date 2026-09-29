@@ -70,6 +70,23 @@ DokuWiki·MediaWiki·Markdown 은 설치할 때 관리자 계정(`admin`)과 비
 
 리눅스: `bash server/anywiki.sh plugin list`, `plugin on 이름`, `plugin off 이름`, `plugin search 낱말`, `plugin install 이름`(DokuWiki).
 
+## 공동위키
+
+서로의 ID 를 등록한 위키끼리 편집을 자동으로 주고받습니다. 관리판의 **공동위키** 칸에서
+
+1. **내 ID** 를 복사해 상대에게 알려 주고, 상대의 ID 를 받아 **회원으로 등록**합니다.
+2. **양쪽이 모두** 등록하고 **[공동위키 켜기]** 를 누르면 1분마다 서로 바뀐 문서를 주고받습니다.
+
+- 엔진이 달라도 됩니다(예: 내 쪽은 DokuWiki, 상대는 openNAMU). 문서는 공용 언어로 통역해 주고받습니다.
+- 각 위키는 **자기 위키에서 고친 문서만** 주고, 받은 문서는 다시 퍼뜨리지 않습니다. 셋 이상이 함께 쓰려면 서로서로 등록하세요.
+- 같은 문서를 양쪽에서 고치면 **마지막에 고친 판**이 이깁니다. 지우기는 옮기지 않습니다. 컴퓨터 시계가 맞아야 합니다.
+- 공동위키 전용 임시 주소(Cloudflare)를 따로 만들므로 위키 자체를 공개하지 않아도 됩니다. 주소가 바뀌어도 상대가 찾을 수 있게
+  'ID → 주소'를 BitTorrent 공용 연결망(DHT)에 서명해 올립니다. 인터넷이 이를 막으면 고정 주소를 쓰거나 회원 주소를 직접 적으세요.
+- 요청과 응답을 모두 서명하므로 다른 사람이 회원인 척하거나 주소를 가로채 끼어들 수 없습니다. 단, **회원은 내 위키의 어느 문서든 고칠 수 있으니** 믿는 위키만 등록하세요.
+
+리눅스: `COWIKI=on bash server/anywiki.sh start`(고정 주소가 있으면 `COWIKI_URL=http://내서버:3002`), `bash server/anywiki.sh cowiki id`,
+`cowiki add 상대ID 이름`, `cowiki list`, `cowiki remove 상대ID`. Docker: `COWIKI=on`, 회원 등록은 `docker compose exec anywiki python3 scripts/cowiki.py /kit add 상대ID 이름`.
+
 ## 인터넷에 공개하려면
 
 - **간단히**: 관리판의 **인터넷에 공개 → [공개하기]**. 공유기 설정 없이 Cloudflare 임시 주소(https)가 생깁니다. 켤 때마다 주소가 바뀌고,
@@ -134,7 +151,7 @@ ENGINE=dokuwiki docker compose up -d        # 처음엔 엔진 받기로 몇 분
 
 ## 폴더
 
-- `wikis/엔진이름/` — 각 엔진의 프로그램과 위키 데이터(엔진을 바꿔도 남음). 0.1 의 `wiki/` 는 처음 켤 때 `wikis/opennamu/` 로 옮겨집니다.
+- `wikis/엔진이름/` — 각 엔진의 프로그램과 위키 데이터(엔진을 바꿔도 남음). `wikis/_cowiki/` — 공동위키 ID(비밀 열쇠)와 회원. 0.1 의 `wiki/` 는 처음 켤 때 `wikis/opennamu/` 로 옮겨집니다.
 - `export/`, `import/` — 내보낸 파일, 가져올 파일. `tools/` — 받은 도구(파이썬·PHP·엔진 파일).
 - 요구 명세: [docs/SPEC.md](docs/SPEC.md)
 

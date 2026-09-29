@@ -6,10 +6,13 @@ services:
     container_name: anywiki
     ports:
       - "${PORT:-3000}:3000"      # 바깥 포트는 PORT 로 바꿈 (예: PORT=8080 docker compose up -d)
+      # - "3002:3002"             # 공동위키 창구를 고정 주소(COWIKI_URL)로 열 때만
     environment:
       ENGINE: "${ENGINE:-opennamu}"   # opennamu · markdown · dokuwiki · mediawiki
       COLOR: "${COLOR:-#3b5bdb}"   # 위키 머리글 색(openNAMU·Markdown)
       UPDATE_NOTICE: "${UPDATE_NOTICE:-on}"   # 새 판 알림(켤 때 한 줄, 알리기만 함)
+      COWIKI: "${COWIKI:-off}"         # 공동위키(서로 ID 를 등록한 위키끼리 편집 주고받기)
+      COWIKI_URL: "${COWIKI_URL:-}"    # 공동위키 창구 고정 주소(비우면 Cloudflare 임시 주소). 쓸 때는 아래 3002 도 열기
     volumes:
       - ./anywiki-data/wikis:/kit/wikis   # 엔진별 위키 데이터
       # 0.1 에서 올라왔다면 아래 줄의 주석을 풀어 한 번 켜면 wikis/opennamu 로 복사된다
