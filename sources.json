@@ -19,10 +19,36 @@
     "cloudflared": {
       "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.9.3/cloudflared-windows-amd64.exe",
       "sha256": "f096265ec2fcbe9bb6e2d64268db167ced3fcbb83d894bdb9e2fcdb26f2ea7e2"
+    },
+    "opennamu-linux-amd64": {
+      "url": "https://github.com/openNAMU/openNAMU/releases/download/v4.3.6-beta.2/main.amd64.bin",
+      "sha256": "d82832ab3d9dda4ff3cde6a0a6ff3740dfd340ba2a8cb44f9da723b7afd91570"
+    },
+    "opennamu-linux-arm64": {
+      "url": "https://github.com/openNAMU/openNAMU/releases/download/v4.3.6-beta.2/main.arm64.bin",
+      "sha256": "3562bce94fe39f30d5b7688fba467baa4d2acd52b0ae437477275b6784e5c1c5"
     }
   },
   "update": {
     "repo": "iamtalker/anywiki-kit",
     "every_hours": 12
+  },
+  "engines": {
+    "dokuwiki": {
+      "version": "2026-07-14c",
+      "repo": "dokuwiki/dokuwiki",
+      "digest": "sha256:fe683fbdb50e326da125885bf6f17a70ea1e2348afd0140c55f23bbae5daa620",
+      "size": 4277227,
+      "subdir": "var/www/html",
+      "note": "Docker Hub 공식 이미지 dokuwiki/dokuwiki:stable 의 프로그램 층"
+    },
+    "mediawiki": {
+      "version": "1.46.0",
+      "repo": "library/mediawiki",
+      "digest": "sha256:a1b71bfda5788f6dd00b8b3f3ff916e4007d90a40bc92149b3b37e108d72b40e",
+      "size": 98684637,
+      "subdir": "var/www/html",
+      "note": "Docker Hub 공식 이미지 mediawiki:1.46 의 프로그램 층(확장 기능 동봉)"
+    }
   }
 }
