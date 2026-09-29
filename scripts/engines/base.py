@@ -55,7 +55,9 @@ class Engine:
         args, cwd, env = self.command()
         out = open(log_path, "a", encoding="utf-8", errors="replace")
         flags = 0x08000000 if os.name == "nt" else 0
-        return subprocess.Popen(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, env=env, creationflags=flags)
+        # 리눅스: 새 프로세스 묶음으로 띄워, 끌 때 PHP 서버의 일꾼 프로세스까지 함께 끈다(panel.stop)
+        return subprocess.Popen(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, env=env, creationflags=flags,
+                                start_new_session=os.name != "nt")
 
     # ---- 문서
     def titles(self):

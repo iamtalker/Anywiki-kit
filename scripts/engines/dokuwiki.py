@@ -19,6 +19,7 @@ import urllib.parse
 from .base import Engine, Page
 from . import php as phpmod
 
+SHIPPED_NS = ("wiki", "playground")
 H1_RE = re.compile(r"^\s*======\s*(.+?)\s*======\s*\n?")
 
 
@@ -126,7 +127,11 @@ class DokuWiki(Engine):
             for fn in files:
                 if fn.endswith(".txt"):
                     rel = os.path.relpath(os.path.join(dp, fn[:-4]), base)
-                    yield ":".join(rel.split(os.sep))
+                    pid = ":".join(rel.split(os.sep))
+                    if pid.split(":")[0] in SHIPPED_NS and not os.path.exists(
+                            os.path.join(self.data, "meta", *pid.split(":")) + ".changes"):
+                        continue  # DokuWiki 가 딸려 보낸 설명서(wiki:syntax 등)는 한 번도 고치지 않았으면 위키 문서로 치지 않는다
+                    yield pid
 
     def title_of(self, pid, text=None, m=None):
         m = self._titles_map() if m is None else m

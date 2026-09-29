@@ -1,4 +1,5 @@
 # 사용: docker compose up -d   (처음엔 엔진 받기로 몇 분, 진행은 docker compose logs -f 로 확인)
+# 엔진 바꾸기: ENGINE 을 고쳐 다시 올리면(docker compose up -d) 문서를 통역해 옮긴다. 옛 엔진의 데이터는 볼륨에 남는다.
 services:
   anywiki:
     build: .
@@ -6,8 +7,11 @@ services:
     ports:
       - "${PORT:-3000}:3000"      # 바깥 포트는 PORT 로 바꿈 (예: PORT=8080 docker compose up -d)
     environment:
-      COLOR: "${COLOR:-#3b5bdb}"   # 위키 머리글 색
+      ENGINE: "${ENGINE:-opennamu}"   # opennamu · markdown · dokuwiki · mediawiki
+      COLOR: "${COLOR:-#3b5bdb}"   # 위키 머리글 색(openNAMU·Markdown)
       UPDATE_NOTICE: "${UPDATE_NOTICE:-on}"   # 새 판 알림(켤 때 한 줄, 알리기만 함)
     volumes:
-      - ./anywiki-data/wiki:/kit/wiki   # 위키 DB·엔진
+      - ./anywiki-data/wikis:/kit/wikis   # 엔진별 위키 데이터
+      # 0.1 에서 올라왔다면 아래 줄의 주석을 풀어 한 번 켜면 wikis/opennamu 로 복사된다
+      # - ./anywiki-data/wiki:/kit/wiki
     restart: unless-stopped

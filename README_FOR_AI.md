@@ -28,24 +28,38 @@
 
 | 포트 | 무엇 | 파일 |
 |---|---|---|
-| 3100 | 관리판(127.0.0.1 전용) | `scripts/panel.py` (HTML·JS 가 파일 안 `PAGE` 문자열에 있음) |
-| 3000 | 사용자에게 보이는 위키(오프라인 자원 치환, 색, 휴대폰 CSS, 검색 자동완성) | `scripts/offline_proxy.py` |
-| 3001 | openNAMU 위키 엔진(바이너리, `wiki/`) | 설치가 받아 옴 |
+| 3100 | 관리판(127.0.0.1 전용, Origin 검사) | `scripts/panel.py` (HTML·JS 가 파일 안 `PAGE` 문자열에 있음) |
+| 3000 | 사용자에게 보이는 위키. openNAMU 면 오프라인 자원 치환·색·휴대폰 CSS, 다른 엔진이면 `--pass`(그대로 전달, Host 유지) | `scripts/offline_proxy.py` |
+| 3001 | 지금 엔진(`wikis/엔진/`) | `scripts/engines/` |
 
-- 설치: Windows `scripts/install.ps1`(파이썬 → openNAMU → 빈 위키 → `add_frontpage.py`), 리눅스 `server/install.sh`, Docker `docker/entrypoint.sh`.
-  openNAMU 는 처음 켤 때 `data.db` 를 스스로 만든다.
-- 켜기·끄기: Windows 관리판(`애니위키.bat` → `panel_launch.ps1` → `panel.py`), 리눅스 `server/anywiki.sh start|stop|status|install-service`.
-- 내보내기: `scripts/convert_wiki.py`(나무마크 → MediaWiki/DokuWiki/Markdown, 멀티프로세스), `scripts/wiki_pack.py`(openNAMU SQLite 내보내기·가져오기).
-  `wiki_pack` 의 메타 표 이름 `yourwiki_pack` 은 유어위키와 파일을 주고받으려고 일부러 그대로 둔다.
-- 공개: `scripts/cloudflared.py`(빠른 터널). 새 판 알림: `scripts/update_check.py`(GitHub 최신 릴리스, 알리기만).
+(2026-09-29 바뀜: 0.1 은 openNAMU 하나였고 `wiki/` 에 있었다. 0.3 부터 엔진 4개, `wikis/엔진이름/`. `kit.migrate()` 가 옛 폴더를 옮긴다.)
+
+- **공용 언어 통역기** `scripts/wikiconv/`: 형식마다 Reader(글 → 공통 구조 `Doc`)·Writer(공통 구조 → 글). `tree.py` 에 블록·인라인 노드 정의와
+  `InlineScanner`·`build_lists`·`tidy`. 형식: namumark · mediawiki · dokuwiki · markdown · awm(확장 마크다운, 공통 구조의 글 형태) + `html_writer`.
+  `wikiconv.convert(글, 원래형식, 새형식, 제목)`. 옮길 수 없는 것은 `raw` 노드(원문 보존). 파일 이름을 `ast.py` 로 하면 표준 라이브러리와 부딪힌다(`tree.py`).
+- **엔진** `scripts/engines/`: 공통 틀 `base.Engine`(installed·install·command·spawn·ready·pages·get·put·put_many·changes_since·count·info·admin_password,
+  `write_while_running`). `opennamu.py`(SQLite 직접, 켜져 있으면 쓰지 않음) · `markdown.py`(`scripts/mdwiki.py` 내장 서버의 Store) ·
+  `dokuwiki.py`(파일, fnencode=utf-8, `anywiki_titles.json` 에 ID→제목, 첫 줄 H1, 딸려 온 `wiki:`·`playground:` 설명서는 안 고쳤으면 문서로 안 침) ·
+  `mediawiki.py`(SQLite 직접 읽기, 쓰기는 공식 `maintenance/run.php edit|importDump`) · `php.py`(PHP 찾기·Windows 휴대용 PHP·`php -S` 명령).
+- **받기** `scripts/fetch.py`: `download(url,dest,sha256)`, `docker_layer(repo,digest,…)`(Docker Hub 레지스트리에서 익명 토큰으로 층 하나를 받아 digest 확인 후 풂).
+- **옮기기** `scripts/transfer.py export|import|switch <root> <형식|파일|엔진>`: 네 형식 파일 읽기·쓰기, `translate()`, 엔진 바꾸기(다 옮긴 뒤에만 설정의 엔진을 바꿈).
+  openNAMU→openNAMU 는 역사까지 `wiki_pack.py` 로. `wiki_pack` 의 메타 표 이름 `yourwiki_pack` 은 유어위키와 파일을 주고받으려고 그대로 둔다.
+- **명령줄** `scripts/kit.py install [엔진] | run-engine | engine [엔진] | info`. 지금 엔진 = 환경 변수 `ENGINE` > `panel.json` 의 `engine` > opennamu.
+- 설치·켜기: Windows `애니위키.bat` → `panel_launch.ps1`(없으면 `install.ps1` 로 파이썬만) → `panel.py`(엔진 설치는 관리판이 `kit.py install`).
+  리눅스 `server/install.sh [엔진]`, `server/anywiki.sh start|stop|status|switch|export|import|install-service`(프로세스 묶음으로 띄우고 묶음째 끔).
+  Docker `docker/entrypoint.sh`(`ENGINE` 이 `wikis/.engine` 과 다르면 switch).
+- 공개: `scripts/cloudflared.py`(빠른 터널). 새 판 알림: `scripts/update_check.py`(GitHub 최신 릴리스, 알리기만, 404=릴리스 없음).
+- 요구 명세: `docs/SPEC.md`(주인이 요구한 것 목록 + 구현 결정). 요구가 늘면 여기에 먼저 적는다.
 
 ## 4. 시험하는 법
 
-- `python3 tests/run_all.py` (지금: `test_pack.py` — 내보내기·가져오기·계정 표 제외·문서 수 갱신).
-- `python3 -m pyflakes scripts/*.py tests/*.py`, `bash -n server/*.sh docker/entrypoint.sh` 통과.
-- 실제 동작: 임시 폴더에 복사해 `bash server/install.sh` → `python3 scripts/panel.py` → `/api/start` → 3000 번 확인.
-  관리판 화면은 playwright(`/opt/pw-browsers/chromium`)로 찍는다. 이 클라우드 환경에서는 GitHub 에서 엔진을 받을 수 있다.
-- Windows(PowerShell·임베디드 파이썬)는 이 환경에서 시험할 수 없다. 주인 PC 에서 확인해야 한다.
+- `python3 tests/run_all.py`: `test_pack.py`(openNAMU 형식 내보내기·가져오기), `test_wikiconv.py`(형식별 왕복·까다로운 글자),
+  `test_engines.py`(마크다운 엔진, 4형식 내보내기→가져오기; `ANYWIKI_DOKU_LAYER=받아둔.tgz` 와 php 가 있으면 DokuWiki 바꾸기까지).
+- `python3 -m pyflakes scripts/*.py scripts/engines/*.py scripts/wikiconv/*.py tests/*.py`, `bash -n server/*.sh docker/entrypoint.sh`.
+- 실제 동작: 임시 폴더에 `scripts assets server docker sources.json` 을 복사하고, 받아 둔 층 파일(`tools/sha256_….tgz`)도 복사해 두면 다시 받지 않는다.
+  `python3 scripts/panel.py --no-browser` → `curl -XPOST -H Origin:http://127.0.0.1:3100 127.0.0.1:3100/api/install?engine=markdown` → `/api/start` → 3000 번 확인.
+  관리판 화면은 playwright(`/opt/pw-browsers/chromium`)로 찍는다.
+- Windows(PowerShell·임베디드 파이썬·휴대용 PHP)는 이 환경에서 시험할 수 없다. 주인 PC 에서 확인해야 한다.
 
 ## 5. 환경에서 알게 된 것
 
@@ -53,19 +67,35 @@
 - 관리판을 고친 뒤 시험할 때 예전 관리판 프로세스가 3100 을 잡고 있지 않은지 확인한다.
 - 리눅스에서는 `cleanup_leftovers()` 가 아무것도 안 한다(Windows 전용).
 - 나무마크에서 백틱(`)은 문법을 막지 않는다. 문법 예시는 `{{{ }}}` 로 감싼다(첫 화면에서 분류가 실제로 붙던 문제).
+- 이 클라우드 환경에서는 dokuwiki.org · releases.wikimedia.org · windows.php.net · extdist.wmflabs.org 가 막혀 있다(다시 시도하지 말 것).
+  Docker Hub 레지스트리(registry-1.docker.io, auth.docker.io)와 허용된 GitHub 저장소는 된다. 그래서 엔진 파일은 Docker Hub 이미지 층에서 받는다.
+- 시스템 PHP 8.4 가 있다(`php -S`). `PHP_CLI_SERVER_WORKERS=4` 로 일꾼을 띄우므로 끌 때 프로세스 묶음째 꺼야 남지 않는다.
+- MediaWiki importDump 는 XML 에 넣을 수 없는 제어 문자가 있으면 멈춘다(`CTRL` 로 지움). DokuWiki 는 URL 인코딩한 한글 파일 이름이 255바이트를 넘는다(fnencode=utf-8 + 긴 ID 는 sha1 꼬리).
 - 관리판 요청 처리(do_POST) 안에서 `import re` 같은 지역 import 를 하면 다른 분기에서 NameError. 모듈 맨 위 import 를 쓴다.
 
 ## 6. 남은 일 (로드맵) — 끝내면 지우지 말고 [완료] 로 표시
 
-- [ ] 엔진 고르기: DokuWiki·MediaWiki 도 원터치 설치·켜기(휴대용 PHP + MediaWiki 는 SQLite). 주인이 원한 다음 단계.
-- [ ] 각 엔진 원래 형식으로 내보내기·가져오기, 그리고 엔진 바꾸기(내보내기 → 변환 → 새 엔진에 넣기, 원본은 백업).
-  변환은 pandoc(MediaWiki·DokuWiki·Markdown 끼리)을 쓰고, 나무마크 → 다른 형식은 지금 변환기, 다른 형식 → 나무마크는 새로 만드는 안을 제안해 둠.
-  역사는 기본은 최신판만. MediaWiki 틀·파서 함수는 옮기면 일부 깨진다는 것을 관리판에 알린다.
-  DokuWiki·MediaWiki 보안판은 "새 판이 있다"고 알리고 사용자가 버튼으로 올리게 한다(원칙 1).
-- [ ] Windows 에서 실제 설치·켜기 확인(주인 몫).
-- [ ] 첫 릴리스 v0.1(주인 몫).
+- [완료 0.3] 엔진 고르기: DokuWiki·MediaWiki 도 원터치 설치·켜기(PHP, MediaWiki 는 SQLite). Markdown 내장 엔진도 추가.
+- [완료 0.2·0.3] 각 엔진 형식으로 내보내기·가져오기, 엔진 바꾸기. (2026-09-29 바뀜: pandoc 안은 버리고 공용 언어(AWM) 통역기를 직접 만듦 —
+  파이썬 표준 라이브러리만 쓰는 원칙 4, 그리고 나무마크를 pandoc 이 모름.)
+- [ ] 0.4 엔진별 플러그인: DokuWiki(플러그인 저장소 API + zip 설치, 동봉 플러그인 켜기/끄기), MediaWiki(동봉 확장 켜기/끄기 = `write_extensions` + `update`),
+  Markdown 내장(katex·highlight 켜기/끄기), openNAMU(없음). 가짜 저장소 서버로 시험.
+- [ ] 0.5 공동위키: 서로 ID 를 등록한 위키끼리 편집 주고받기(유어위키의 Ed25519·DHT·터널 창구 재사용, 문서는 AWM 으로, 엔진이 달라도 됨).
+  마지막에 쓴 판이 이김, 남에게서 받은 판은 다시 퍼뜨리지 않음.
+- [ ] DokuWiki·MediaWiki 보안판 알림("새 판이 있다", 사용자가 버튼으로 올림 — 원칙 1).
+- [ ] Windows 에서 실제 설치·켜기 확인, 특히 휴대용 PHP(주인 몫).
+- [ ] GitHub 릴리스 만들기: 태그 v0.2·v0.3 에서(주인 몫).
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
+
+### 2026-09-29 — 0.2 공용 언어 통역기, 0.3 엔진 4개·엔진 바꾸기
+- 주인 요구(원문 요약은 `docs/SPEC.md`): 도쿠·미디어·오픈나무·마크다운으로 쓰고 내보내기·가져오기, 키트 안에서 형식 바꾸기, 가운데 공용 언어(확장 마크다운, 보이지 않게),
+  엔진별 플러그인, 공동위키(서로 ID 등록), 임시 주소 공개 유지, README·커밋·릴리스로 이력 관리, AI 혼자 구현.
+- 0.2: `wikiconv`(AST + AWM). 실제 문서 21,707개를 6형식으로 오가며 낱말 손실을 재고 고침(자세한 목록은 커밋 기록).
+- 0.3: `engines/`, `mdwiki.py`, `fetch.py`, `transfer.py`, `kit.py`, 관리판 다시 씀(엔진 칸), 리눅스·Docker 엔진 대응, 시험 `test_engines.py`.
+- 확인: 관리판으로 Markdown 설치 → 켜기 → DokuWiki 로 바꾸기 → MediaWiki 로 바꾸기(첫 화면이 '대문'으로), 리눅스 스크립트 Markdown ↔ DokuWiki,
+  Docker 시작 스크립트 흉내(ENGINE 을 바꿔 다시 시작하면 옮김). 1,500 문서로 openNAMU → Markdown → DokuWiki → MediaWiki → openNAMU 한 바퀴.
+- 결정: 릴리스는 태그만(v0.2 = 통역기 커밋, v0.3 = 이 커밋). GitHub 릴리스 페이지는 주인이 만든다.
 
 ### 2026-09-29 — 첫 판(유어위키 1.2 에서 갈라짐)
 - 유어위키에서 가져온 것: 관리판(설정 유지·칸 접기·공개·새 판 알림), 오프라인 중계 서버, 내보내기(4형식), openNAMU 가져오기, 리눅스·Docker 스크립트, 설치 틀.

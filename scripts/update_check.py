@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,6 +63,10 @@ def check(force=False, current=None):
     if force or time.time() - cache.get("checked_at", 0) > every * 3600 or cache.get("repo") != repo:
         try:
             cache = dict(fetch(repo), repo=repo, checked_at=time.time(), error="")
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            cache = dict(repo=repo, checked_at=time.time(), error="", latest="", none=True)  # 아직 릴리스가 없음
         except Exception as e:  # 인터넷이 없거나 GitHub 가 안 될 때: 전에 알던 것을 그대로 쓰고 조용히 넘어간다
             cache = dict(cache, repo=repo, checked_at=time.time(), error=str(e)[:200])
         try:
@@ -79,6 +84,8 @@ def message(r):
                 f"{r.get('url')}")
     if r.get("latest"):
         return f"최신 판입니다 ({r['current']}, GitHub 최신 {r['latest']})"
+    if r.get("none"):
+        return f"GitHub 에 아직 릴리스가 없습니다(지금 {r['current']})"
     return f"새 판을 확인하지 못했습니다: {r.get('error') or '알 수 없음'}"
 
 

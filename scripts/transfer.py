@@ -59,6 +59,8 @@ class Progress:
 
 
 def current_engine(root):
+    if os.environ.get("ENGINE") in engines.ENGINES:  # 리눅스·Docker 는 설정 파일 대신 ENGINE 으로 정한다
+        return os.environ["ENGINE"]
     try:
         return json.load(open(os.path.join(root, "panel.json"), encoding="utf-8")).get("engine", "opennamu")
     except (OSError, ValueError):
@@ -382,6 +384,10 @@ def switch(root, target, log_fn=log):
         log_fn(f"{engines.NAMES[target]} 설치")
         dst.install(log_fn)
     pages, resolve = engine_pages(src) if src.installed() else ([], None)
+    import kit  # 첫 화면은 엔진마다 이름이 달라(FrontPage·start·대문) 새 엔진의 첫 화면 이름으로 옮긴다
+    a, b = kit.FRONT_TITLE[name], kit.FRONT_TITLE[target]
+    if a != b and not any(p.title == b for p in pages):
+        pages = [Page(b, p.text, p.modified, p.author, p.summary) if p.title == a else p for p in pages]
     log_fn(f"{engines.NAMES[name]} → {engines.NAMES[target]}: 문서 {len(pages):,}개를 통역해 옮깁니다")
     t0 = time.time()
     n = put_all(dst, translate(pages, name, target, resolve, len(pages)), len(pages))
@@ -407,6 +413,10 @@ def main():
         if a.arg not in engines.ENGINES:
             raise SystemExit(f"엔진: {', '.join(engines.ENGINES)}")
         switch(root, a.arg)
+        import kit  # 다 옮긴 뒤에만 지금 엔진을 바꾼다(중간에 끊기면 옛 엔진 그대로)
+        st = kit.settings()
+        st["engine"] = a.arg
+        kit.save_settings(st)
 
 
 if __name__ == "__main__":

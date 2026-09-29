@@ -10,7 +10,7 @@ openNAMU 는 CDN 주소와 외부 삽입(유튜브 등)을 프로그램 안에 �
   5) 관리판에서 고른 머리글 색, 휴대폰 화면 다듬기, 검색창 제목 자동완성, 아무 문서나 보기 단추를 붙인다.
 DB 의 문서 원문은 건드리지 않는다.
 
-사용: python offline_proxy.py <assets 폴더> [--listen 127.0.0.1:3000] [--upstream 127.0.0.1:3001] [--wiki-db wiki/data.db]
+사용: python offline_proxy.py <assets 폴더> [--listen 127.0.0.1:3000] [--upstream 127.0.0.1:3001] [--wiki-db wikis/opennamu/data.db] [--pass]
 """
 import argparse
 import html
@@ -170,6 +170,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     upstream = ("127.0.0.1", 3001)
     cdn_dir = ""
     wiki_db = ""
+    passthrough = False  # PHP 엔진(DokuWiki·MediaWiki)·내장 마크다운 엔진: 고치지 않고 그대로 넘긴다
 
     def _send_bytes(self, body, ctype):
         self.send_response(200)
@@ -214,9 +215,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _proxy(self):
-        if self.path.startswith("/_kit/cdn/"):
+        if self.path.startswith("/_kit/cdn/") and not self.passthrough:
             return self._serve_cdn()
-        if self.path.startswith("/_kit/suggest") and self.wiki_db:
+        if self.path.startswith("/_kit/suggest") and self.wiki_db and not self.passthrough:
             return self._suggest()
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -228,7 +229,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else None
         headers = {k: v for k, v in self.headers.items()
                    if k.lower() not in ("host", "accept-encoding", "connection")}
-        headers["Host"] = "%s:%d" % self.upstream
+        if self.passthrough:  # 엔진이 공개 주소를 알도록 원래 주소를 그대로
+            headers["Host"] = self.headers.get("Host", "%s:%d" % self.upstream)
+            headers.setdefault("X-Forwarded-For", self.client_address[0])
+        else:
+            headers["Host"] = "%s:%d" % self.upstream
         headers["Accept-Encoding"] = "identity"
         conn = http.client.HTTPConnection(*self.upstream, timeout=300)
         try:
@@ -250,14 +255,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             conn.close()
         ctype = resp.getheader("Content-Type", "")
-        if "text/html" in ctype:
+        if "text/html" in ctype and not self.passthrough:
             data = add_suggest(rewrite_html(data.decode("utf-8", "replace"))).encode("utf-8")
         self.send_response(resp.status, resp.reason)
         for k, v in resp.getheaders():
             kl = k.lower()
             if kl in ("content-length", "transfer-encoding", "connection", "content-encoding"):
                 continue
-            if kl == "location":
+            if kl == "location" and not self.passthrough:
                 v = v.replace("%s:%d" % self.upstream, self.headers.get("Host", ""))
             self.send_header(k, v)
         self.send_header("Content-Length", str(len(data)))
@@ -277,8 +282,11 @@ def main():
     ap.add_argument("assets_dir")
     ap.add_argument("--listen", default="127.0.0.1:3000")
     ap.add_argument("--upstream", default="127.0.0.1:3001")
-    ap.add_argument("--wiki-db", default="", help="위키 DB(wiki/data.db). 주면 검색창에 제목 자동완성이 생긴다")
+    ap.add_argument("--wiki-db", default="", help="openNAMU 위키 DB(wikis/opennamu/data.db). 주면 검색창에 제목 자동완성이 생긴다")
+    ap.add_argument("--pass", dest="passthrough", action="store_true",
+                    help="고치지 않고 그대로 넘긴다(openNAMU 가 아닌 엔진)")
     args = ap.parse_args()
+    Handler.passthrough = args.passthrough
     host, port = args.listen.rsplit(":", 1)
     uhost, uport = args.upstream.rsplit(":", 1)
     Handler.upstream = (uhost, int(uport))
@@ -286,7 +294,8 @@ def main():
     Handler.cdn_dir = os.path.join(os.path.abspath(args.assets_dir), "cdn")
     with open(os.path.join(args.assets_dir, "icons.json"), encoding="utf-8") as f:
         ICONS.update(json.load(f))
-    print(f"중계 서버: http://{host}:{port}  →  openNAMU {uhost}:{uport}", flush=True)
+    print(f"중계 서버: http://{host}:{port}  →  위키 엔진 {uhost}:{uport}{' (그대로 넘김)' if args.passthrough else ''}",
+          flush=True)
     Server((host, int(port)), Handler).serve_forever()
 
 
