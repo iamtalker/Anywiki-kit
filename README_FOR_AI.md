@@ -102,6 +102,7 @@
 ### 2026-09-29 — 릴리스 자동화
 - 주인이 "왜 릴리스 못 하나" 물음. 이유: 이 환경의 git 프록시가 태그 푸시를 끊고, GitHub 도구에는 릴리스 만들기가 없으며 gh·API 토큰도 없다.
 - 해결: GitHub Actions `release.yml` + `.github/release.py`(CHANGELOG 의 판마다 `gh release create`, 이미 있으면 건너뜀). CHANGELOG 머리줄에 판별 커밋을 적음.
+- 릴리스에 받을 파일 `anywiki-kit-판.zip`(git archive, `.gitattributes` 의 export-ignore 로 시험·AI 문서 뺌)과 받는 법을 붙임. 이미 있는 릴리스에도 붙인다.
 
 ### 2026-09-29 — 0.5 공동위키
 - `cowiki.py`, 관리판 공동위키 칸, 리눅스 `COWIKI`·`COWIKI_URL`·`anywiki.sh cowiki`, Docker `COWIKI`. `dht.py`·`ed25519.py` 유어위키에서 가져옴.

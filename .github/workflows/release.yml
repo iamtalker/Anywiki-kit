@@ -4,7 +4,7 @@ name: 릴리스
 on:
   push:
     branches: [main]
-    paths: [CHANGELOG.md, .github/release.py, .github/workflows/release.yml]
+    paths: [CHANGELOG.md, .gitattributes, .github/release.py, .github/workflows/release.yml]
   workflow_dispatch:
 permissions:
   contents: write

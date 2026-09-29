@@ -1,6 +1,7 @@
-*.sh text eol=lf
-*.py text eol=lf
-*.ps1 text eol=crlf
-*.bat text eol=crlf
-*.gz binary
-*.woff2 binary
+# 릴리스 zip(git archive)에 넣지 않는 개발용 파일
+.github export-ignore
+.gitattributes export-ignore
+tests export-ignore
+AGENTS.md export-ignore
+CLAUDE.md export-ignore
+README_FOR_AI.md export-ignore
