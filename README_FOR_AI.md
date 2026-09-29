@@ -13,6 +13,8 @@
 - **변경할 때마다 커밋하고 푸시한다.** 병합은 주인이 한다. AI 가 PR 을 병합하지 않는다.
 - 주인은 **자기 생각이라고 무비판적으로 받지 말고, 치명적 문제가 있으면 말하라**고 했다.
 - 릴리스(GitHub Release)는 주인이 만든다. 판 번호는 `scripts/panel.py` 의 `KIT_VERSION` 과 `CHANGELOG.md`.
+  (2026-09-29 바뀜: AI 환경은 태그 푸시·릴리스 API 가 막혀 있어 `.github/workflows/release.yml` 이 대신 만든다. CHANGELOG 를 고쳐 main 에 올리면
+  릴리스가 없는 판마다 태그·릴리스가 생긴다. 새 판을 맨 위에 덧붙일 때 바로 아래 판 머리줄에 `(커밋 짧은해시)` 를 적어 둘 것.)
 
 ## 2. 원칙
 
@@ -96,6 +98,10 @@
 - [ ] GitHub 릴리스 만들기: 태그 v0.2·v0.3 에서(주인 몫).
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
+
+### 2026-09-29 — 릴리스 자동화
+- 주인이 "왜 릴리스 못 하나" 물음. 이유: 이 환경의 git 프록시가 태그 푸시를 끊고, GitHub 도구에는 릴리스 만들기가 없으며 gh·API 토큰도 없다.
+- 해결: GitHub Actions `release.yml` + `.github/release.py`(CHANGELOG 의 판마다 `gh release create`, 이미 있으면 건너뜀). CHANGELOG 머리줄에 판별 커밋을 적음.
 
 ### 2026-09-29 — 0.5 공동위키
 - `cowiki.py`, 관리판 공동위키 칸, 리눅스 `COWIKI`·`COWIKI_URL`·`anywiki.sh cowiki`, Docker `COWIKI`. `dht.py`·`ed25519.py` 유어위키에서 가져옴.
