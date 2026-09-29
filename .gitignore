@@ -1,0 +1,15 @@
+# 설치하면서 생기는 것
+tools/
+wiki/
+*.log
+panel.json
+panel.json.*
+__pycache__/
+*.pyc
+run/
+export/
+import/
+update.json
+anywiki.conf
+anywiki.conf.tmp
+anywiki-data/

@@ -1,0 +1,13 @@
+.git
+tools/
+wiki/
+run/
+*.log
+panel.json
+panel.json.*
+__pycache__/
+update.json
+anywiki.conf
+anywiki-data/
+import/
+export/

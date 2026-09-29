@@ -1,0 +1,13 @@
+# 사용: docker compose up -d   (처음엔 엔진 받기로 몇 분, 진행은 docker compose logs -f 로 확인)
+services:
+  anywiki:
+    build: .
+    container_name: anywiki
+    ports:
+      - "${PORT:-3000}:3000"      # 바깥 포트는 PORT 로 바꿈 (예: PORT=8080 docker compose up -d)
+    environment:
+      COLOR: "${COLOR:-#3b5bdb}"   # 위키 머리글 색
+      UPDATE_NOTICE: "${UPDATE_NOTICE:-on}"   # 새 판 알림(켤 때 한 줄, 알리기만 함)
+    volumes:
+      - ./anywiki-data/wiki:/kit/wiki   # 위키 DB·엔진
+    restart: unless-stopped
