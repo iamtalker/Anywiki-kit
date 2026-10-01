@@ -91,7 +91,8 @@
   `cowiki.py`, `dht.py`, `ed25519.py`, 관리판의 엔진 바꾸기·플러그인·공동위키 칸, `transfer.py switch`, `kit.py engine|plugin`, `anywiki.sh switch|plugin|cowiki`,
   Docker 의 PHP·`ENGINE`·`COWIKI`, `sources.json` 의 엔진·플러그인 저장소. `transfer.py` 가 쓰던 `H1_RE`·`id_path` 는 transfer.py 안으로 옮김.
 - 시험: `test_cowiki`·`test_engines` 삭제, `test_transfer`(openNAMU 로 네 형식 왕복) 추가. 관리판을 띄워 `/api/status`·화면 칸·제거한 API 404 확인.
-- 이 PC 의 로컬 폴더 `C:\claude programnywiki-kit` 는 GitHub 보다 오래된 비-git 사본이라 건드리지 않았다(작업은 별도 클론에서).
+- 공동위키(ID 를 서로 등록해 편집 공유)를 뺀 이유(주인): 어차피 같이 쓸 거면 서버 하나에 올리면 되는 일이라 따로 둘 필요가 없다. 되살리지 말 것.
+- 이 PC 의 로컬 폴더 `C:\claude program\anywiki-kit` 는 주인 허락을 받아 지우고 GitHub 에서 새로 clone 했다(이제 git 저장소, 작업은 여기서).
 
 ### 2026-10-02 — 0.5.1 (로컬 Windows 세션)
 - 주인 요청: 유어위키와 주소(포트)가 같아 같이 못 켜므로 바꿈 → 관리판 4100, 위키 4000, 엔진 4001, 공동위키 4002. (유어위키는 3100·3000·3001·3002)
