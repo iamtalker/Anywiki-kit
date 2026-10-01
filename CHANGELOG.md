@@ -2,7 +2,12 @@
 
 버전마다 달라진 점을 여기에 적습니다. 새 버전이 위에 옵니다.
 
-## 0.6 — 2026-10-02
+## 0.6.1 — 2026-10-02
+**유어위키와 기능을 맞췄습니다.** 가져오기는 이제 **openNAMU 형식(`.db`)만** 됩니다. 내보내기는 그대로 네 형식(openNAMU · MediaWiki · DokuWiki · Markdown)입니다.
+- 뺀 것: MediaWiki(.xml)·DokuWiki(.zip)·Markdown(.zip, .md) 파일 가져오기. 관리판 가져오기 칸과 `anywiki.sh import` 는 `.db` 만 받습니다.
+- 다른 형식으로 쓰던 위키는 이 키트로 내보내기 → 다른 위키에 넣기는 되지만, 거꾸로 들어오는 것은 openNAMU 형식뿐입니다.
+
+## 0.6 — 2026-10-02 (커밋 3d45c36)
 **위키 엔진을 openNAMU 하나로 줄이고 안정화했습니다.** Markdown·DokuWiki·MediaWiki 엔진까지 다 지원하려던 것은 욕심이었다고 판단해, 유어위키에서 나무위키 동기화만 뺀 수준으로 돌아갑니다.
 - 뺀 것: Markdown·DokuWiki·MediaWiki **엔진**, 엔진 바꾸기, 플러그인 칸, 공동위키(DHT·서명), PHP 받기. 관리판은 설치·켜기·끄기·색·공개·내보내기·가져오기·새 판 알림만 남았습니다.
 - 그대로인 것: **내보내기·가져오기 네 형식**(openNAMU · MediaWiki · DokuWiki · Markdown)과 공용 언어 통역기, 임시 주소 공개, 리눅스·Docker 설치.

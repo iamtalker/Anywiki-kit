@@ -1,4 +1,4 @@
-"""옮기기 시험(인터넷 없이): openNAMU 위키에 문서를 넣고, 네 형식으로 내보냈다 새 위키에 가져와 같아지는지."""
+"""옮기기 시험(인터넷 없이): openNAMU 위키에 문서를 넣고, 네 형식으로 내보내고, openNAMU 형식은 새 위키에 가져와 같아지는지."""
 import os
 import shutil
 import sqlite3
@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 os.environ.pop("ENGINE", None)
 import engines  # noqa: E402
 import transfer  # noqa: E402
-import wikiconv  # noqa: E402
 from engines.base import Page  # noqa: E402
 
 COLS = "test text default '', "
@@ -68,26 +67,34 @@ try:
     for fmt in transfer.FORMATS:
         out = os.path.join(root, "export", f"t-{fmt}{transfer.EXT[fmt]}")
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        pages, resolve = transfer.engine_pages(e)
-        n = transfer.WRITERS[fmt](transfer.translate(pages, "opennamu", fmt, resolve), out)
-        check(n == 3, f"{fmt} 내보내기 수 {n}")
-        check(transfer.detect(out) == fmt, f"{fmt} 형식 알아보기: {transfer.detect(out)}")
+        n = transfer.WRITERS[fmt](transfer.translate(transfer.engine_pages(e), "opennamu", fmt), out)
+        check(n == 3 and os.path.getsize(out) > 0, f"{fmt} 내보내기 수 {n}")
+        if fmt == "mediawiki":
+            import gzip
+            xml = gzip.open(out, "rt", encoding="utf-8").read()
+            check("굵게" in xml and "<title>대문</title>" in xml, "mediawiki XML 내용")
+        if fmt == "markdown":
+            import zipfile
+            z = zipfile.ZipFile(out)
+            check(any("굵게" in z.read(x).decode("utf-8") for x in z.namelist() if x.endswith(".md")), "markdown 내용")
+        if fmt != "opennamu":
+            continue
+        check(transfer.detect(out) == "opennamu", "형식 알아보기")
         r2 = make_root()  # 새 위키에 가져오기
         try:
             e2 = engines.get("opennamu", r2)
-            transfer.import_file(r2, out)
-            check(e2.count() == 3, f"{fmt} 가져오기 수 {e2.count()}")
-            check("굵게" in e2.get("대문").text, f"{fmt} 에서 '굵게' 잃음: {e2.get('대문').text!r}")
-            got = getattr(transfer, "read_" + fmt)(out)
-            got = got[0] if fmt == "dokuwiki" else list(got)
-            check({p.title for p in got} == set(DOCS), f"{fmt} 제목 {sorted(p.title for p in got)}")
-            for p in got:
-                back = wikiconv.convert(p.text, transfer.SYNTAX[fmt], "namumark", p.title)
-                for w in ("환영", "설명", "하나"):
-                    if w in DOCS.get(p.title, ""):
-                        check(w in back, f"{fmt} 에서 '{w}' 잃음: {back!r}")
+            check(transfer.import_file(r2, out) == 3, "가져오기 수")
+            check(e2.count() == 3, f"가져온 뒤 문서 수 {e2.count()}")
+            check("굵게" in e2.get("대문").text, f"'굵게' 잃음: {e2.get('대문').text!r}")
+            check(transfer.import_file(r2, out) == 0, "다시 넣으면 모두 건너뜀")
         finally:
             shutil.rmtree(r2, ignore_errors=True)
+    for bad in ("a.xml", "a.zip", "a.md"):
+        try:
+            transfer.detect(bad)
+            check(False, f"{bad} 는 가져올 수 없어야 함")
+        except ValueError:
+            pass
 finally:
     shutil.rmtree(root, ignore_errors=True)
 

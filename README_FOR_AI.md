@@ -42,7 +42,7 @@
 - **엔진** `scripts/engines/`: 공통 틀 `base.Engine`(installed·install·command·spawn·ready·pages·get·put·put_many·changes_since·count·info·admin_password)와
   `opennamu.py`(SQLite 직접, 켜져 있으면 쓰지 않음). `ENGINES = ("opennamu",)`. 다른 엔진을 붙이려면 `engines.get` 과 `ENGINES` 에 더하면 되는 구조는 남겨 둠.
 - **받기** `scripts/fetch.py`: `download(url,dest,sha256)`.
-- **옮기기** `scripts/transfer.py export|import <root> <형식|파일>`: 네 형식 파일 읽기·쓰기, `translate()`. openNAMU→openNAMU 는 역사까지 `wiki_pack.py` 로.
+- **옮기기** `scripts/transfer.py export|import <root> <형식|파일>`: 내보내기는 네 형식(`translate()` 로 통역), 가져오기는 openNAMU `.db` 만(유어위키와 같게). openNAMU→openNAMU 는 역사까지 `wiki_pack.py` 로.
   `wiki_pack` 의 메타 표 이름 `yourwiki_pack` 은 유어위키와 파일을 주고받으려고 그대로 둔다.
 - **명령줄** `scripts/kit.py install | run-engine | info`.
 - 설치·켜기: Windows `애니위키.bat` → `panel_launch.ps1`(없으면 `install.ps1` 로 파이썬만) → `panel.py`(엔진 설치는 관리판이 `kit.py install`).
@@ -55,7 +55,7 @@
 ## 4. 시험하는 법
 
 - `PYTHONUTF8=1 python tests/run_all.py`(Windows 에서 `PYTHONUTF8` 없으면 하위 프로세스 출력 해석이 깨짐):
-  `test_transfer.py`(openNAMU 위키에 문서를 넣고 네 형식으로 내보내기→새 위키에 가져오기), `test_pack.py`(openNAMU 형식 내보내기·가져오기), `test_wikiconv.py`(형식별 왕복·까다로운 글자).
+  `test_transfer.py`(openNAMU 위키에 문서를 넣고 네 형식으로 내보내기, openNAMU 형식은 새 위키에 가져오기), `test_pack.py`(openNAMU 형식 내보내기·가져오기), `test_wikiconv.py`(형식별 왕복·까다로운 글자).
 - `python -m pyflakes scripts/*.py scripts/engines/*.py scripts/wikiconv/*.py tests/*.py`, `bash -n server/*.sh docker/entrypoint.sh`.
 - 실제 동작: `python scripts/panel.py --no-browser` → `curl http://127.0.0.1:4100/api/status`. 설치(`/api/install`)는 인터넷이 필요하다.
   시험으로 띄운 관리판은 끝나고 꼭 끈다(4100 을 잡고 있으면 다음 시험이 헛돈다).
@@ -86,7 +86,8 @@
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
 
 ### 2026-10-02 — 0.6 안정화(범위 줄이기)
-- 주인 결정: 엔진은 openNAMU 만, 변환 도구(내보내기·가져오기 4형식)는 유지. 제거: `engines/{dokuwiki,mediawiki,markdown,php}.py`, `mdwiki.py`,
+- 주인 추가 지시 "유어위키와 같게 맞춰": 가져오기는 openNAMU 형식(.db)만, 내보내기는 네 형식(유어위키와 같음). `read_mediawiki`·`read_dokuwiki`·`read_markdown` 제거(wikiconv 의 Reader 는 라이브러리로 남김).
+- 주인 결정: 엔진은 openNAMU 만, 변환 도구는 유지. 제거: `engines/{dokuwiki,mediawiki,markdown,php}.py`, `mdwiki.py`,
   `cowiki.py`, `dht.py`, `ed25519.py`, 관리판의 엔진 바꾸기·플러그인·공동위키 칸, `transfer.py switch`, `kit.py engine|plugin`, `anywiki.sh switch|plugin|cowiki`,
   Docker 의 PHP·`ENGINE`·`COWIKI`, `sources.json` 의 엔진·플러그인 저장소. `transfer.py` 가 쓰던 `H1_RE`·`id_path` 는 transfer.py 안으로 옮김.
 - 시험: `test_cowiki`·`test_engines` 삭제, `test_transfer`(openNAMU 로 네 형식 왕복) 추가. 관리판을 띄워 `/api/status`·화면 칸·제거한 API 404 확인.

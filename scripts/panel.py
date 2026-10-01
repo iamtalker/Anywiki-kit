@@ -26,10 +26,10 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6"
+KIT_VERSION = "0.6.1"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
-IMPORT_EXT = (".db", ".sqlite", ".sqlite3", ".xml", ".xml.gz", ".zip", ".md")
+IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
 EXPORT_FORMATS = ("opennamu", "mediawiki", "dokuwiki", "markdown")
 ENGINE_DESC = {"opennamu": "나무마크 문법. 실행 파일 하나라 가볍고 빠릅니다."}
 
@@ -325,8 +325,8 @@ DokuWiki: DokuWiki 폴더에 풀고 <code>php bin/indexer.php</code> · Markdown
 <details class="sec" id="sec-import"><summary><h2>가져오기</h2><span class="sum" id="sum-import"></span></summary>
 <select id="ifile"></select> <button onclick="imp()">가져오기</button>
 <div id="iprog" style="margin:6px 0;font-weight:bold"></div>
-<p class="note">openNAMU(.db) · MediaWiki(.xml, .xml.gz) · DokuWiki(.zip) · Markdown(.zip, .md) 파일을 <code id="impdir"></code> 폴더에 넣고 고르세요.
-나무마크로 통역해 넣고, 같은 문서가 내 쪽에 더 새로 있으면 건너뜁니다.
+<p class="note">openNAMU 형식(.db) 파일(이 키트나 유어위키가 내보낸 것, 또는 다른 openNAMU 의 data.db)을 <code id="impdir"></code> 폴더에 넣고 고르세요.
+문서마다 내 쪽보다 새 판만 역사 뒤에 이어 붙이고, 같거나 더 새로우면 건너뜁니다.
 파일 내용은 검증하지 않으니 믿을 수 있는 파일만 넣으세요. 위키를 끈 상태에서만 가져옵니다.</p>
 <pre id="implog"></pre></details>
 <details class="sec" id="sec-update"><summary><h2>새 판 알림</h2><span class="sum" id="sum-update"></span></summary>

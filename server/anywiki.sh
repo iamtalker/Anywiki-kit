@@ -4,7 +4,7 @@
 #   bash server/anywiki.sh start            # 켜기 (기본: 0.0.0.0:4000 으로 공개)
 #   bash server/anywiki.sh stop | status
 #   bash server/anywiki.sh export <형식>     # export/ 에 내보내기(opennamu·mediawiki·dokuwiki·markdown)
-#   bash server/anywiki.sh import <파일>     # 파일을 가져오기(위키를 끈 상태에서)
+#   bash server/anywiki.sh import <파일.db>  # openNAMU 형식 파일 가져오기(위키를 끈 상태에서)
 #   sudo bash server/anywiki.sh install-service   # systemd 에 등록해 부팅 때 자동 시작
 #
 # 환경 변수: LISTEN(기본 0.0.0.0:4000)

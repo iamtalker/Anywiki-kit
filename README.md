@@ -2,7 +2,7 @@
 
 누구나 자기 컴퓨터나 서버에 **나만의 위키(openNAMU)** 를 원터치로 띄울 수 있게 해 주는 도구입니다.
 관리판에서 설치·켜기·끄기·인터넷 임시 공개를 하고, 위키 문서를 **openNAMU · MediaWiki · DokuWiki · Markdown** 형식으로
-**내보내고 가져올 수 있습니다**(문서를 새 형식의 문법으로 자동 통역).
+**내보낼 수 있고**(문서를 새 형식의 문법으로 자동 통역), openNAMU 형식(.db)은 **가져올 수도 있습니다**(유어위키와 같음).
 **누구의 서버도 필요 없습니다.** 키트는 공식 배포처에서 프로그램을 받아 해시로 검증할 뿐, 제작자는 서버를 운영하지 않습니다.
 
 > [유어위키](https://github.com/iamtalker/yourwiki)(나무위키 전체를 내 위키로)에서 나무위키 전용 기능(데이터·동기화·P2P)을 뺀 범용판입니다.
@@ -41,9 +41,10 @@
 - **DokuWiki**: `anywiki-dokuwiki.zip` → DokuWiki 폴더에 `data/` 를 덮어 풀고 `php bin/indexer.php`.
 - **Markdown**: `anywiki-markdown.zip` → 문서마다 `.md` 하나.
 
-**가져오기**: openNAMU(`.db`) · MediaWiki(`.xml`, `.xml.gz`) · DokuWiki(`.zip`) · Markdown(`.zip`, `.md`) 파일을 `import/` 폴더에 넣고
-관리판의 **가져오기**에서 고릅니다. 나무마크로 통역해 넣고, 같은 문서가 내 쪽에 더 새로 있으면 건너뜁니다.
+**가져오기**: openNAMU 형식(`.db`) 파일(이 키트나 유어위키가 내보낸 것, 또는 다른 openNAMU 의 `data.db`)을 `import/` 폴더에 넣고
+관리판의 **가져오기**에서 고릅니다. 문서마다 내 쪽보다 새 판만 역사 뒤에 이어 붙이고, 같거나 더 새로우면 건너뜁니다(지우기는 옮기지 않음).
 가져온 판의 역사 요약에는 `[가져옴 파일이름]` 이 붙습니다. 위키를 끈 상태에서만 가져옵니다. 파일 내용은 검증하지 않으니 믿을 수 있는 파일만 넣으세요.
+MediaWiki·DokuWiki·Markdown 은 내보내기만 됩니다.
 
 속으로는 모든 문법을 한 번 **공용 언어(AWM, 확장 마크다운)** 로 읽은 뒤 새 문법으로 씁니다(`scripts/wikiconv/`).
 
@@ -51,7 +52,7 @@
 - 옮길 수 없는 문법(엔진 전용 HTML 등)은 글자만 남기거나 원문 보존 블록으로 감쌉니다. 틀(템플릿)의 **내용**은 엔진마다 달라 손으로 고쳐야 할 수 있습니다.
 - 실제 위키 문서 2만여 개로 시험해, DokuWiki·MediaWiki 로 옮겼을 때 문서의 98% 가 낱말의 90% 이상을 그대로 지녔습니다. 이미지 파일은 옮기지 않습니다.
 
-명령줄: `python scripts/transfer.py export . markdown`, `python scripts/transfer.py import . 파일`.
+명령줄: `python scripts/transfer.py export . markdown`, `python scripts/transfer.py import . 파일.db`.
 통역기만 쓰려면 파이썬에서 `wikiconv.convert(글, "namumark", "mediawiki")`(형식: namumark · mediawiki · dokuwiki · markdown · awm).
 
 ## 인터넷에 공개하려면
@@ -73,7 +74,7 @@ bash server/install.sh                  # openNAMU 받기
 bash server/anywiki.sh start            # 켜기 (0.0.0.0:4000)
 bash server/anywiki.sh status           # 상태·문서 수
 bash server/anywiki.sh export markdown  # export/ 에 내보내기
-bash server/anywiki.sh import 파일      # 가져오기(위키를 끈 상태에서)
+bash server/anywiki.sh import 파일.db   # 가져오기(openNAMU 형식, 위키를 끈 상태에서)
 sudo bash server/anywiki.sh install-service   # 부팅 때 자동 시작(systemd)
 ```
 
@@ -99,8 +100,7 @@ docker compose up -d        # 처음엔 openNAMU 받기로 몇 분
 ## 이전 판(0.5 이하)에서 올릴 때
 
 0.6 부터 위키 엔진은 openNAMU 하나입니다(Markdown·DokuWiki·MediaWiki 엔진과 공동위키, 플러그인 칸은 뺐습니다).
-openNAMU 를 쓰던 위키는 `wikis/opennamu/` 가 그대로라 새 판을 덮어 풀면 됩니다. 다른 엔진을 쓰던 위키는 **0.5.1 에서 openNAMU 로 바꾼 뒤** 올리거나,
-0.5.1 의 관리판에서 내보내기(openNAMU 형식)한 파일을 새 판에서 **가져오기** 하세요. 0.5.1 은 [릴리스 v0.5.1](https://github.com/iamtalker/Anywiki-kit/releases/tag/v0.5.1) 에 있습니다.
+openNAMU 를 쓰던 위키는 `wikis/opennamu/` 가 그대로라 새 판을 덮어 풀면 됩니다. 다른 엔진을 쓰던 위키는 0.5.1 의 관리판에서 내보내기(openNAMU 형식)한 `.db` 파일을 새 판에서 **가져오기** 하세요. 0.5.1 은 [릴리스 v0.5.1](https://github.com/iamtalker/Anywiki-kit/releases/tag/v0.5.1) 에 있습니다.
 포트는 0.5.1 부터 4100(관리판)·4000(위키)입니다.
 
 ## 폴더

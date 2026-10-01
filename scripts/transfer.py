@@ -1,11 +1,11 @@
 """데이터 옮기기: 내보내기·가져오기 (애니위키 키트, 표준 라이브러리만).
 
 모든 문서는 '엔진 문법 → 공용 언어(wikiconv) → 다른 문법' 으로 통역된다.
-파일 형식(내보내기·가져오기 공통):
+파일 형식(가져오기는 openNAMU 형식뿐, 내보내기는 네 형식):
   opennamu  : .db   (openNAMU data.db 와 같은 SQLite, 문서 표만. 계정·IP 기록은 넣지 않음)
-  mediawiki : .xml.gz (MediaWiki 가져오기 XML)
-  dokuwiki  : .zip  (DokuWiki data/pages 폴더 구조)
-  markdown  : .zip  (문서마다 .md 하나)
+  mediawiki : .xml.gz (MediaWiki 가져오기 XML, 내보내기만)
+  dokuwiki  : .zip  (DokuWiki data/pages 폴더 구조, 내보내기만)
+  markdown  : .zip  (문서마다 .md 하나, 내보내기만)
 
     python transfer.py export <키트 폴더> <형식> [--out 파일]
     python transfer.py import <키트 폴더> <파일>
@@ -16,13 +16,11 @@ import gzip
 import html
 import json
 import os
-import pathlib
 import re
 import sqlite3
 import sys
 import time
 import urllib.parse
-import xml.etree.ElementTree as ET
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +28,6 @@ import engines  # noqa: E402
 import wikiconv  # noqa: E402
 from engines.base import Page  # noqa: E402
 
-H1_RE = re.compile(r"^\s*======\s*(.+?)\s*======\s*\n?")  # DokuWiki 문서의 첫 제목줄
 
 FORMATS = ("opennamu", "mediawiki", "dokuwiki", "markdown")
 EXT = {"opennamu": ".db", "mediawiki": ".xml.gz", "dokuwiki": ".zip", "markdown": ".zip"}
@@ -70,15 +67,11 @@ def current_engine(root):
 
 
 # ================================================================ 통역
-def to_doc(engine_name, text, title, resolve=None):
-    if engine_name == "dokuwiki" and resolve:
-        from wikiconv import dokuwiki
-        from wikiconv.tree import tidy
-        return tidy(dokuwiki.read(text.replace("\x00", ""), title, resolve))
+def to_doc(engine_name, text, title):
     return wikiconv.parse(text, SYNTAX[engine_name], title)
 
 
-def translate(pages, src, dst, resolve=None, total=None):
+def translate(pages, src, dst, total=None):
     """Page(원래 문법) 들 → Page(새 문법). 문제가 있는 문서는 원문을 코드 블록으로 감싸 넣는다(내용은 잃지 않게)."""
     prog = Progress(total or 1)
     for i, p in enumerate(pages, 1):
@@ -86,7 +79,7 @@ def translate(pages, src, dst, resolve=None, total=None):
             yield p
         else:
             try:
-                text = wikiconv.render(to_doc(src, p.text, p.title, resolve), SYNTAX[dst], p.title)
+                text = wikiconv.render(to_doc(src, p.text, p.title), SYNTAX[dst], p.title)
             except Exception as e:  # 한 문서가 이상해도 전체를 멈추지 않는다
                 log(f"  통역 실패(원문 보존): {p.title} — {e}")
                 text = wikiconv.render(wikiconv.Doc([["raw", SYNTAX[src], p.text]]), SYNTAX[dst], p.title)
@@ -212,109 +205,14 @@ WRITERS = {"opennamu": write_opennamu, "mediawiki": write_mediawiki, "dokuwiki":
 
 # ================================================================ 파일 읽기
 def detect(path):
-    low = path.lower()
-    if low.endswith((".db", ".sqlite", ".sqlite3")):
+    if path.lower().endswith((".db", ".sqlite", ".sqlite3")):
         return "opennamu"
-    if low.endswith((".xml", ".xml.gz")):
-        return "mediawiki"
-    if low.endswith(".zip"):
-        with zipfile.ZipFile(path) as z:
-            names = z.namelist()
-        if any(re.search(r"(^|/)data/pages/.+\.txt$", n) for n in names):
-            return "dokuwiki"
-        if any(n.lower().endswith(".md") for n in names):
-            return "markdown"
-    if low.endswith(".md"):
-        return "markdown"
-    raise ValueError("알 수 없는 파일 형식입니다(.db / .xml / .xml.gz / DokuWiki·Markdown .zip)")
+    raise ValueError("가져올 수 있는 것은 openNAMU 형식(.db) 파일뿐입니다")
 
 
-def read_opennamu(path):
-    from engines.opennamu import from_db_title
-    db = sqlite3.connect(pathlib.Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
-    try:
-        has_set = db.execute("select 1 from sqlite_master where name = 'data_set'").fetchone()
-        for t, text in db.execute("select title, data from data").fetchall():
-            m = db.execute("select set_data from data_set where doc_name = ? and set_name = 'last_edit' and doc_rev = ''",
-                           (t,)).fetchone() if has_set else None
-            yield Page(from_db_title(t), text or "", (m[0] if m else "")[:19])
-    finally:
-        db.close()
-
-
-def read_mediawiki(path):
-    from wikiconv.mediawiki import to_common
-    opener = gzip.open if path.lower().endswith(".gz") else open
-    with opener(path, "rb") as f:
-        title, ns, text, ts, user = "", "0", "", "", ""
-        for ev, el in ET.iterparse(f, events=("end",)):
-            tag = el.tag.rsplit("}", 1)[-1]
-            if tag == "title":
-                title = el.text or ""
-            elif tag == "ns":
-                ns = el.text or "0"
-            elif tag == "timestamp":
-                ts = el.text or ""
-            elif tag in ("username", "ip"):
-                user = el.text or ""
-            elif tag == "text":
-                text = el.text or ""
-            elif tag == "page":
-                if ns in ("0", "10", "14"):
-                    mod = ""
-                    if ts:
-                        t = time.strptime(ts[:19], "%Y-%m-%dT%H:%M:%S")
-                        import calendar
-                        mod = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(calendar.timegm(t)))
-                    yield Page(to_common(title), text, mod, user)
-                title, ns, text, ts, user = "", "0", "", "", ""
-                el.clear()
-
-
-def read_dokuwiki(path):
-    """(Page 들, 링크 ID → 제목 함수)."""
-    from wikiconv.dokuwiki import doku_id, id_to_title
-    z = zipfile.ZipFile(path)
-    titles = {}
-    for n in z.namelist():
-        if n.endswith("anywiki_titles.json"):
-            titles = json.loads(z.read(n).decode("utf-8"))
-    entries = []
-    for n in z.namelist():
-        m = re.search(r"(?:^|/)data/pages/(.+)\.txt$", n)
-        if not m:
-            continue
-        pid = ":".join(urllib.parse.unquote(p) for p in m.group(1).split("/"))
-        text = z.read(n).decode("utf-8", "replace")
-        h = H1_RE.match(text)
-        title = titles.get(pid) or (h.group(1).strip() if h else id_to_title(pid))
-        if h and h.group(1).strip() == title:
-            text = text[h.end():].lstrip("\n")
-        info = z.getinfo(n)
-        entries.append(Page(title, text, time.strftime("%Y-%m-%d %H:%M:%S", info.date_time + (0, 0, -1))))
-        titles.setdefault(pid, title)
-    back = {doku_id(t): t for t in titles.values()}
-    resolve = lambda pid: titles.get(pid.strip(":").lower()) or back.get(pid.strip(":").lower()) or id_to_title(pid)  # noqa: E731
-    return entries, resolve
-
-
-def read_markdown(path):
-    from wikiconv.markdown import md_title
-    if path.lower().endswith(".md"):
-        yield Page(md_title(os.path.basename(path)), open(path, encoding="utf-8").read())
-        return
-    with zipfile.ZipFile(path) as z:
-        for n in z.namelist():
-            if n.lower().endswith(".md") and not os.path.basename(n).startswith("_"):
-                info = z.getinfo(n)
-                yield Page(md_title(os.path.basename(n)), z.read(n).decode("utf-8", "replace"),
-                           time.strftime("%Y-%m-%d %H:%M:%S", info.date_time + (0, 0, -1)))
-
-
-# ================================================================ 작업
 def engine_pages(e):
-    """엔진의 문서들과 링크 ID → 제목 함수(openNAMU 는 없음)."""
-    return list(e.pages()), None
+    """엔진의 모든 문서."""
+    return list(e.pages())
 
 
 def export(root, fmt, out=""):
@@ -328,20 +226,9 @@ def export(root, fmt, out=""):
         import wiki_pack
         n = wiki_pack.export(e.dir, out)
     else:
-        pages, resolve = engine_pages(e)
-        n = WRITERS[fmt](translate(pages, name, fmt, resolve, len(pages)), out)
+        pages = engine_pages(e)
+        n = WRITERS[fmt](translate(pages, name, fmt, len(pages)), out)
     log(f"완료: 문서 {n:,}개, {time.time() - t0:.0f}초 → {out}")
-    return n
-
-
-def put_all(e, pages, total):
-    prog = Progress(total)
-    if hasattr(e, "put_many"):
-        return e.put_many(pages, log)
-    n = 0
-    for i, p in enumerate(pages, 1):
-        n += bool(e.put(p))
-        prog.tick(i)
     return n
 
 
@@ -351,30 +238,8 @@ def import_file(root, path):
     src = detect(path)
     log(f"{src} 형식 파일을 {engines.NAMES[name]} 로 가져오기 시작 ← {os.path.basename(path)}")
     t0 = time.time()
-    tag = f"[가져옴 {os.path.basename(path)}] "
-    if name == "opennamu" and src == "opennamu":  # 역사까지 그대로, 내 쪽보다 새 판만
-        import wiki_pack
-        n = wiki_pack.import_pack(e.dir, path)
-    else:
-        resolve = None
-        if src == "opennamu":
-            pages = list(read_opennamu(path))
-        elif src == "mediawiki":
-            pages = list(read_mediawiki(path))
-        elif src == "dokuwiki":
-            pages, resolve = read_dokuwiki(path)
-        else:
-            pages = list(read_markdown(path))
-        log(f"문서 {len(pages):,}개를 통역합니다")
-        out = []
-        for p in translate(pages, src, name, resolve, len(pages)):
-            cur = e.get(p.title)
-            if cur and p.modified and cur.modified >= p.modified:
-                continue  # 내 쪽이 같거나 더 새롭다
-            p.summary = tag + (p.summary or "")
-            out.append(p)
-        log(f"넣을 문서 {len(out):,}개(내 쪽이 같거나 더 새로운 {len(pages) - len(out):,}개는 건너뜀)")
-        n = put_all(e, out, len(out))
+    import wiki_pack  # 역사까지 그대로, 내 쪽보다 새 판만
+    n = wiki_pack.import_pack(e.dir, path)
     log(f"가져온 문서 {n:,}개 · {time.time() - t0:.0f}초")
     return n
 
