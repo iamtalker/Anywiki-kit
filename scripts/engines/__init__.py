@@ -9,19 +9,12 @@
 """
 from .base import Engine, Page  # noqa: F401
 
-ENGINES = ("opennamu", "markdown", "dokuwiki", "mediawiki")
-NAMES = {"opennamu": "openNAMU", "markdown": "Markdown (내장)", "dokuwiki": "DokuWiki", "mediawiki": "MediaWiki"}
+ENGINES = ("opennamu",)
+NAMES = {"opennamu": "openNAMU"}
 
 
 def get(name, root):
-    if name == "opennamu":
-        from .opennamu import OpenNamu as E
-    elif name == "markdown":
-        from .markdown import MarkdownEngine as E
-    elif name == "dokuwiki":
-        from .dokuwiki import DokuWiki as E
-    elif name == "mediawiki":
-        from .mediawiki import MediaWiki as E
-    else:
+    if name != "opennamu":
         raise ValueError(f"알 수 없는 엔진: {name}")
-    return E(root)
+    from .opennamu import OpenNamu
+    return OpenNamu(root)

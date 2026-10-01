@@ -32,16 +32,13 @@
 
 <h2>2. 필요한 프로그램 설치 (Ubuntu/Debian)</h2>
 <div class="cmd"><code>sudo apt update && sudo apt install -y git python3 curl</code><button>복사</button></div>
-<p class="muted">DokuWiki·MediaWiki 엔진을 쓰려면 PHP 도 필요합니다:</p>
-<div class="cmd"><code>sudo apt install -y php-cli php-mbstring php-xml php-intl php-sqlite3 php-gd php-curl php-zip</code><button>복사</button></div>
 
 <h2>3. 키트 받기</h2>
 <div class="cmd"><code>git clone https://github.com/iamtalker/anywiki-kit && cd anywiki-kit</code><button>복사</button></div>
 
 <h2>4. 설치 (몇 분)</h2>
-<div class="cmd"><code>bash server/install.sh opennamu</code><button>복사</button></div>
-<p class="muted">엔진은 <code>opennamu</code>(나무마크) · <code>markdown</code>(내장, 설치할 것 없음) · <code>dokuwiki</code> · <code>mediawiki</code> 중에서 고릅니다.
-엔진 파일을 받아 해시를 검증하고 빈 위키와 첫 화면을 만듭니다. DokuWiki·MediaWiki 는 관리자 계정(admin)과 비밀번호를 알려 줍니다.</p>
+<div class="cmd"><code>bash server/install.sh</code><button>복사</button></div>
+<p class="muted">위키 엔진(openNAMU)을 받아 해시를 검증하고 빈 위키와 첫 화면을 만듭니다.</p>
 
 <h2>5. 켜기</h2>
 <div class="cmd"><code>bash server/anywiki.sh start</code><button>복사</button></div>
@@ -55,15 +52,14 @@
 <div class="cmd"><code>bash server/anywiki.sh stop</code><button>복사</button></div>
 <div class="cmd"><code>LISTEN=127.0.0.1:4000 bash server/anywiki.sh start</code><button>복사</button></div>
 <div class="cmd"><code>TUNNEL=on bash server/anywiki.sh start</code><button>복사</button></div>
-<div class="cmd"><code>bash server/anywiki.sh switch mediawiki</code><button>복사</button></div>
 <div class="cmd"><code>bash server/anywiki.sh export markdown</code><button>복사</button></div>
 <p class="muted"><code>LISTEN</code>: 받을 주소(기본 <code>0.0.0.0:4000</code> = 외부 공개). <code>TUNNEL=on</code>: 공인 IP 없이 Cloudflare 임시 주소(https)로 공개(주소는 status 로 확인, 켤 때마다 바뀜).
 한 번 준 값은 <code>anywiki.conf</code> 에 기억되어 다음부터 그냥 <code>start</code> 해도 그대로입니다.
-<code>switch</code>: 엔진 바꾸기(문서를 새 엔진 문법으로 통역해 옮기고, 옛 엔진 데이터는 <code>wikis/</code> 에 남김). <code>export</code>: <code>export/</code> 에 내보내기.</p>
+<code>export</code>: <code>export/</code> 에 내보내기.</p>
 
 <h2>8. 공개 전에 할 일</h2>
 <ol>
-  <li><b>관리자 계정</b>: openNAMU 는 위키에서 처음 가입한 사람이 관리자가 됩니다(켜자마자 먼저 가입). 다른 엔진은 설치 때 알려 준 admin 계정(<code>bash server/anywiki.sh status</code> 로 다시 보기).</li>
+  <li><b>관리자 계정</b>: openNAMU 는 위키에서 처음 가입한 사람이 관리자가 됩니다(켜자마자 먼저 가입).</li>
   <li><b>편집 권한</b>: 관리자 설정에서 누구나 / 가입자만 / 읽기 전용 중에서 정하세요.</li>
   <li><b>HTTPS</b>: nginx 나 Caddy 를 4000번 앞에 두면 됩니다. 예) Caddy: <code>reverse_proxy 127.0.0.1:4000</code></li>
   <li><b>방화벽</b>: 4000번(또는 80/443) 포트를 여세요.</li>

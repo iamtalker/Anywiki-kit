@@ -3,25 +3,20 @@
 #
 #   bash server/anywiki.sh start            # 켜기 (기본: 0.0.0.0:4000 으로 공개)
 #   bash server/anywiki.sh stop | status
-#   bash server/anywiki.sh switch <엔진>     # 엔진 바꾸기(opennamu·markdown·dokuwiki·mediawiki). 문서를 통역해 옮긴다
 #   bash server/anywiki.sh export <형식>     # export/ 에 내보내기(opennamu·mediawiki·dokuwiki·markdown)
-#   bash server/anywiki.sh import <파일>     # 파일을 지금 엔진으로 가져오기(openNAMU 는 꺼진 상태에서)
-#   bash server/anywiki.sh plugin list|on 이름|off 이름|search 낱말|install 이름   # 지금 엔진의 플러그인
-#   bash server/anywiki.sh cowiki id|list|name 이름|add ID [이름] [주소]|remove ID   # 공동위키 회원(켜기는 COWIKI=on)
+#   bash server/anywiki.sh import <파일>     # 파일을 가져오기(위키를 끈 상태에서)
 #   sudo bash server/anywiki.sh install-service   # systemd 에 등록해 부팅 때 자동 시작
 #
 # 환경 변수: LISTEN(기본 0.0.0.0:4000)
 #            TUNNEL(on|off, 기본 off): 공인 IP·공유기 설정 없이 Cloudflare 임시 주소(https)로 공개. 주소는 status 로 확인
-#            COWIKI(on|off, 기본 off): 공동위키(서로 ID 를 등록한 위키끼리 편집 주고받기)
-#            COWIKI_URL: 공동위키 창구의 고정 주소(예: http://내서버:4002). 없으면 Cloudflare 임시 주소를 따로 만든다
 #            UPDATE_NOTICE(on|off, 기본 on): GitHub 에 새 판이 나왔는지 켤 때 알려 주기(알리기만 함)
 # 한 번 준 값은 anywiki.conf 에 기억되어 다음에 그냥 start 해도 그대로 쓴다. 바꾸려면 새 값을 주고 start.
-# 엔진은 설치·switch 때 panel.json 에 기억된다. HTTPS 는 nginx·Caddy 같은 역방향 프록시를 4000번 앞에 두세요.
+# HTTPS 는 nginx·Caddy 같은 역방향 프록시를 4000번 앞에 두세요.
 set -euo pipefail
 KIT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$KIT"
 CONF="$KIT/anywiki.conf"
-VARS=(LISTEN TUNNEL UPDATE_NOTICE COWIKI COWIKI_URL)
+VARS=(LISTEN TUNNEL UPDATE_NOTICE)
 # 기억해 둔 설정 읽기(이번에 직접 준 값이 우선). source 하지 않고 KEY=값 줄만 읽는다
 if [ -f "$CONF" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
@@ -38,7 +33,7 @@ save_conf() {
 }
 export PYTHONUTF8=1
 LISTEN="${LISTEN:-0.0.0.0:4000}"
-ENGINE="${ENGINE:-$(python3 scripts/kit.py engine)}"
+ENGINE=opennamu   # 위키 엔진은 openNAMU 하나
 export ENGINE
 RUN="$KIT/run"; mkdir -p "$RUN"
 
@@ -51,7 +46,7 @@ launch() { # 이름 로그 명령...  (새 프로세스 묶음으로 띄워, 끌
 tunnel_url() { grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$RUN/tunnel.log" 2>/dev/null | tail -n 1 || true; }
 installed() { python3 -c "import sys; sys.path.insert(0,'scripts'); import engines; sys.exit(0 if engines.get('$ENGINE','.').installed() else 1)"; }
 do_stop() {
-  for n in cowiki_tunnel cowiki tunnel proxy engine; do
+  for n in tunnel proxy engine; do
     if running "$n"; then kill -- "-$(cat "$RUN/$n.pid")" 2>/dev/null || kill "$(cat "$RUN/$n.pid")"; echo "$n 껐습니다"; fi
     rm -f "$RUN/$n.pid"
   done
@@ -62,12 +57,7 @@ case "${1:-}" in
     installed || { echo "$ENGINE 엔진이 아직 설치되지 않았습니다: bash server/install.sh $ENGINE"; exit 1; }
     save_conf || echo "설정을 anywiki.conf 에 기억하지 못했습니다(권한 확인)"
     launch engine server.log python3 scripts/kit.py run-engine
-    if [ "$ENGINE" = opennamu ]; then
-      PROXY_MODE=(--wiki-db wikis/opennamu/data.db)
-    else
-      PROXY_MODE=(--pass)
-    fi
-    launch proxy proxy.log python3 scripts/offline_proxy.py assets --listen "$LISTEN" --upstream 127.0.0.1:4001 "${PROXY_MODE[@]}"
+    launch proxy proxy.log python3 scripts/offline_proxy.py assets --listen "$LISTEN" --upstream 127.0.0.1:4001 --wiki-db wikis/opennamu/data.db
     if [ "${TUNNEL:-off}" = on ]; then
       if CF=$(python3 scripts/cloudflared.py); then
         running tunnel || : > "$RUN/tunnel.log"
@@ -77,18 +67,6 @@ case "${1:-}" in
         echo "터널 프로그램을 받지 못해 임시 주소 공개는 건너뜁니다."
       fi
     fi
-    if [ "${COWIKI:-off}" = on ]; then
-      if [ -n "${COWIKI_URL:-}" ]; then
-        launch cowiki cowiki.log python3 scripts/cowiki.py "$KIT" run --listen 0.0.0.0:4002 --self-url "$COWIKI_URL"
-      else
-        running cowiki_tunnel || : > "$RUN/cowiki-tunnel.log"
-        launch cowiki cowiki.log python3 scripts/cowiki.py "$KIT" run --tunnel-log "$RUN/cowiki-tunnel.log"
-        if CF=$(python3 scripts/cloudflared.py); then
-          launch cowiki_tunnel cowiki-tunnel.log "$CF" tunnel --no-autoupdate --url http://127.0.0.1:4002
-        fi
-      fi
-      echo "공동위키를 켰습니다. 내 ID: $(python3 scripts/cowiki.py "$KIT" id)"
-    fi
     echo "켰습니다($ENGINE): http://$LISTEN (엔진 준비에 잠깐 걸릴 수 있습니다) · 임시 주소 공개: ${TUNNEL:-off}"
     [ "${UPDATE_NOTICE:-on}" = on ] && python3 scripts/update_check.py --quiet || true   # 새 판이 있을 때만 한 줄
     ;;
@@ -97,36 +75,20 @@ case "${1:-}" in
     ;;
   status)
     echo "엔진: $ENGINE"
-    for n in engine proxy tunnel cowiki; do
+    for n in engine proxy tunnel; do
       if running "$n"; then echo "● $n 실행 중"; else echo "○ $n 꺼짐"; fi
     done
-    running cowiki && python3 scripts/cowiki.py "$KIT" list
     running tunnel && echo "임시 공개 주소: $(tunnel_url)"
     python3 scripts/kit.py info 2>/dev/null | grep -E '"(docs|version|admin)"' || true
     [ "${UPDATE_NOTICE:-on}" = on ] && python3 scripts/update_check.py || true
-    ;;
-  switch)
-    [ -n "${2:-}" ] || { echo "사용: $0 switch <opennamu|markdown|dokuwiki|mediawiki>"; exit 1; }
-    was=0; running engine && was=1
-    do_stop
-    python3 scripts/transfer.py switch "$KIT" "$2"   # 끝까지 옮긴 뒤에만 지금 엔진이 바뀐다
-    if [ "$was" = 1 ]; then ENGINE="$2" exec bash "$0" start; fi
     ;;
   export)
     python3 scripts/transfer.py export "$KIT" "${2:?형식: opennamu·mediawiki·dokuwiki·markdown}"
     ;;
   import)
     f="${2:?가져올 파일을 주세요}"
-    if [ "$ENGINE" = opennamu ] && running engine; then echo "openNAMU 는 끈 뒤에 가져오세요: $0 stop"; exit 1; fi
+    if running engine; then echo "위키를 끈 뒤에 가져오세요: $0 stop"; exit 1; fi
     python3 scripts/transfer.py import "$KIT" "$(realpath "$f")"
-    ;;
-  cowiki)
-    shift
-    python3 scripts/cowiki.py "$KIT" "${@:-list}"
-    ;;
-  plugin)
-    shift
-    python3 scripts/kit.py plugin "$@"
     ;;
   install-service)
     [ "$(id -u)" = 0 ] || { echo "sudo 로 실행하세요"; exit 1; }
@@ -151,6 +113,6 @@ UNIT
     echo "등록했습니다: systemctl status anywiki"
     ;;
   *)
-    sed -n '2,22p' "$0"
+    sed -n '2,16p' "$0"
     ;;
 esac

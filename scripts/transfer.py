@@ -1,4 +1,4 @@
-"""데이터 옮기기: 내보내기·가져오기·엔진 바꾸기 (애니위키 키트, 표준 라이브러리만).
+"""데이터 옮기기: 내보내기·가져오기 (애니위키 키트, 표준 라이브러리만).
 
 모든 문서는 '엔진 문법 → 공용 언어(wikiconv) → 다른 문법' 으로 통역된다.
 파일 형식(내보내기·가져오기 공통):
@@ -9,14 +9,13 @@
 
     python transfer.py export <키트 폴더> <형식> [--out 파일]
     python transfer.py import <키트 폴더> <파일>
-    python transfer.py switch <키트 폴더> <새 엔진>
-엔진은 키트 설정(panel.json 의 engine, 기본 opennamu)을 따른다.
+위키 엔진은 openNAMU 하나이고, 다른 형식은 파일로 주고받는다.
 """
 import argparse
 import gzip
 import html
 import json
-import os
+import os
 import pathlib
 import re
 import sqlite3
@@ -30,6 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import engines  # noqa: E402
 import wikiconv  # noqa: E402
 from engines.base import Page  # noqa: E402
+
+H1_RE = re.compile(r"^\s*======\s*(.+?)\s*======\s*\n?")  # DokuWiki 문서의 첫 제목줄
 
 FORMATS = ("opennamu", "mediawiki", "dokuwiki", "markdown")
 EXT = {"opennamu": ".db", "mediawiki": ".xml.gz", "dokuwiki": ".zip", "markdown": ".zip"}
@@ -164,9 +165,13 @@ def write_mediawiki(pages, out, sitename="애니위키"):
     return n
 
 
+def id_path(pid):
+    """내보낸 zip 용(DokuWiki 기본 설정 fnencode=url 과 같은 파일 이름)."""
+    return "/".join(urllib.parse.quote(p, safe="") for p in pid.split(":"))
+
+
 def write_dokuwiki(pages, out):
     from wikiconv.dokuwiki import doku_id
-    from engines.dokuwiki import id_path
     seen, titles, n = set(), {}, 0
     with zipfile.ZipFile(out + ".part", "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
         for p in pages:
@@ -268,7 +273,6 @@ def read_mediawiki(path):
 
 def read_dokuwiki(path):
     """(Page 들, 링크 ID → 제목 함수)."""
-    from engines.dokuwiki import H1_RE
     from wikiconv.dokuwiki import doku_id, id_to_title
     z = zipfile.ZipFile(path)
     titles = {}
@@ -309,8 +313,8 @@ def read_markdown(path):
 
 # ================================================================ 작업
 def engine_pages(e):
-    """엔진의 문서들과 (DokuWiki 면) 링크 ID → 제목 함수."""
-    return list(e.pages()), (e.resolver() if hasattr(e, "resolver") else None)
+    """엔진의 문서들과 링크 ID → 제목 함수(openNAMU 는 없음)."""
+    return list(e.pages()), None
 
 
 def export(root, fmt, out=""):
@@ -364,7 +368,7 @@ def import_file(root, path):
         log(f"문서 {len(pages):,}개를 통역합니다")
         out = []
         for p in translate(pages, src, name, resolve, len(pages)):
-            cur = e.get(p.title) if len(pages) < 5000 or name != "mediawiki" else None
+            cur = e.get(p.title)
             if cur and p.modified and cur.modified >= p.modified:
                 continue  # 내 쪽이 같거나 더 새롭다
             p.summary = tag + (p.summary or "")
@@ -375,30 +379,9 @@ def import_file(root, path):
     return n
 
 
-def switch(root, target, log_fn=log):
-    """지금 엔진의 모든 문서를 새 엔진 문법으로 통역해 새 엔진에 넣는다. 옛 엔진의 데이터는 그대로 남는다(백업)."""
-    name = current_engine(root)
-    if name == target:
-        raise ValueError("이미 그 엔진입니다")
-    src, dst = engines.get(name, root), engines.get(target, root)
-    if not dst.installed():
-        log_fn(f"{engines.NAMES[target]} 설치")
-        dst.install(log_fn)
-    pages, resolve = engine_pages(src) if src.installed() else ([], None)
-    import kit  # 첫 화면은 엔진마다 이름이 달라(FrontPage·start·대문) 새 엔진의 첫 화면 이름으로 옮긴다
-    a, b = kit.FRONT_TITLE[name], kit.FRONT_TITLE[target]
-    if a != b and not any(p.title == b for p in pages):
-        pages = [Page(b, p.text, p.modified, p.author, p.summary) if p.title == a else p for p in pages]
-    log_fn(f"{engines.NAMES[name]} → {engines.NAMES[target]}: 문서 {len(pages):,}개를 통역해 옮깁니다")
-    t0 = time.time()
-    n = put_all(dst, translate(pages, name, target, resolve, len(pages)), len(pages))
-    log_fn(f"완료: 옮긴 문서 {n:,}개, {time.time() - t0:.0f}초. 옛 엔진의 데이터는 wikis/{name}/ 에 그대로 있습니다")
-    return n
-
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("action", choices=["export", "import", "switch"])
+    ap.add_argument("action", choices=["export", "import"])
     ap.add_argument("root")
     ap.add_argument("arg")
     ap.add_argument("--out", default="")
@@ -410,14 +393,6 @@ def main():
         export(root, a.arg, a.out)
     elif a.action == "import":
         import_file(root, a.arg)
-    else:
-        if a.arg not in engines.ENGINES:
-            raise SystemExit(f"엔진: {', '.join(engines.ENGINES)}")
-        switch(root, a.arg)
-        import kit  # 다 옮긴 뒤에만 지금 엔진을 바꾼다(중간에 끊기면 옛 엔진 그대로)
-        st = kit.settings()
-        st["engine"] = a.arg
-        kit.save_settings(st)
 
 
 if __name__ == "__main__":

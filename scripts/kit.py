@@ -1,11 +1,8 @@
 """애니위키 키트 명령줄 도구 (관리판·리눅스 스크립트·Docker 가 함께 쓴다).
 
-    python kit.py install [엔진]      # 엔진 설치(없으면 지금 엔진). 빈 위키와 첫 화면까지
-    python kit.py run-engine          # 지금 엔진을 켠다(이 프로세스가 엔진이 됨: 리눅스·Docker 용)
-    python kit.py engine [엔진]       # 지금 엔진 보기 / 바꾸기(데이터는 옮기지 않음. 옮기려면 transfer.py switch)
+    python kit.py install             # 위키 엔진(openNAMU) 설치. 빈 위키와 첫 화면까지
+    python kit.py run-engine          # 엔진을 켠다(이 프로세스가 엔진이 됨: 리눅스·Docker 용)
     python kit.py info                # 엔진·문서 수·관리자 계정 (JSON)
-    python kit.py plugin list | on 이름 | off 이름 | search 낱말 | install 이름   # 지금 엔진의 플러그인
-엔진: opennamu · markdown · dokuwiki · mediawiki
 """
 import json
 import os
@@ -29,14 +26,13 @@ categories: []
 
 - **관리자 계정**: 관리판의 '상태' 칸에 적힌 관리자 계정으로 로그인하세요(openNAMU 는 처음 가입한 사람이 관리자).
 - **편집 권한**: 공개하기 전에 관리자 설정에서 누가 편집할 수 있는지 정하세요.
-- **엔진 바꾸기**: 관리판의 '엔진' 칸에서 openNAMU · Markdown · DokuWiki · MediaWiki 사이를 오갈 수 있습니다. 문서는 자동으로 옮겨집니다.
 
 ## 키트
 
-- 켜기·끄기, 인터넷에 공개, 4가지 형식 내보내기·가져오기, 플러그인, 공동위키는 **관리판**에서 합니다.
+- 켜기·끄기, 인터넷에 공개, 4가지 형식(openNAMU · MediaWiki · DokuWiki · Markdown) 내보내기·가져오기는 **관리판**에서 합니다.
 - [애니위키 키트](https://github.com/iamtalker/anywiki-kit)
 """
-FRONT_TITLE = {"opennamu": "FrontPage", "markdown": "FrontPage", "dokuwiki": "start", "mediawiki": "대문"}
+FRONT_TITLE = {"opennamu": "FrontPage"}
 
 
 def settings():
@@ -84,7 +80,7 @@ def install(name, log=print):
     e = engines.get(name, ROOT)
     e.install(log)
     front = FRONT_TITLE[name]
-    if name != "dokuwiki" and not e.get(front):
+    if not e.get(front):
         text = wikiconv.convert(FRONT, "awm", e.syntax, front)
         e.put(Page(front, text, author="애니위키 키트", summary="첫 화면"))
         log("첫 화면 문서를 넣었습니다")
@@ -115,30 +111,6 @@ def info():
     return out
 
 
-def plugin(args):
-    e = engines.get(current(), ROOT)
-    if not e.installed():
-        raise SystemExit("엔진이 아직 설치되지 않았습니다")
-    act = args[0] if args else "list"
-    try:
-        if act == "list":
-            for p in e.plugins():
-                print(f"{'●' if p['on'] else '○'} {p['id']:<24} {p['name']}{' (끌 수 없음)' if p['locked'] else ''}")
-            print(e.plugin_note)
-        elif act in ("on", "off") and len(args) > 1:
-            print(e.set_plugin(args[1], act == "on", lambda m: print(m, flush=True)))
-        elif act == "search":
-            for p in e.search_plugins(" ".join(args[1:])):
-                print(f"{p['id']:<24} {p['name']} — {p['desc'][:80]}{' [설치됨]' if p.get('installed') else ''}"
-                      f"{' [보안 문제: ' + p['security'] + ']' if p.get('security') else ''}")
-        elif act == "install" and len(args) > 1:
-            e.install_plugin(args[1], lambda m: print(m, flush=True))
-        else:
-            print(__doc__)
-    except (ValueError, RuntimeError) as ex:
-        raise SystemExit(f"실패: {ex}")
-
-
 def main():
     migrate()
     if len(sys.argv) < 2:
@@ -146,7 +118,7 @@ def main():
         return
     cmd = sys.argv[1]
     if cmd == "install":
-        name = sys.argv[2] if len(sys.argv) > 2 else current()
+        name = current()
         t0 = time.time()
         install(name, lambda m: print(m, flush=True))
         s = settings()
@@ -156,18 +128,8 @@ def main():
         print(f"완료 ({time.time() - t0:.0f}초)", flush=True)
     elif cmd == "run-engine":
         run_engine()
-    elif cmd == "engine":
-        if len(sys.argv) > 2:
-            if sys.argv[2] not in engines.ENGINES:
-                raise SystemExit(f"엔진: {', '.join(engines.ENGINES)}")
-            s = settings()
-            s["engine"] = sys.argv[2]
-            save_settings(s)
-        print(current())
     elif cmd == "info":
         print(json.dumps(info(), ensure_ascii=False, indent=2))
-    elif cmd == "plugin":
-        plugin(sys.argv[2:])
     else:
         print(__doc__)
 

@@ -32,26 +32,5 @@
   "update": {
     "repo": "iamtalker/anywiki-kit",
     "every_hours": 12
-  },
-  "engines": {
-    "dokuwiki": {
-      "version": "2026-07-14c",
-      "repo": "dokuwiki/dokuwiki",
-      "digest": "sha256:fe683fbdb50e326da125885bf6f17a70ea1e2348afd0140c55f23bbae5daa620",
-      "size": 4277227,
-      "subdir": "var/www/html",
-      "note": "Docker Hub 공식 이미지 dokuwiki/dokuwiki:stable 의 프로그램 층"
-    },
-    "mediawiki": {
-      "version": "1.46.0",
-      "repo": "library/mediawiki",
-      "digest": "sha256:a1b71bfda5788f6dd00b8b3f3ff916e4007d90a40bc92149b3b37e108d72b40e",
-      "size": 98684637,
-      "subdir": "var/www/html",
-      "note": "Docker Hub 공식 이미지 mediawiki:1.46 의 프로그램 층(확장 기능 동봉)"
-    }
-  },
-  "plugin_repos": {
-    "dokuwiki": "https://www.dokuwiki.org/lib/plugins/pluginrepo/api.php"
   }
 }

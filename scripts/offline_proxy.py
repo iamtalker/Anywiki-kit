@@ -171,7 +171,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     upstream = ("127.0.0.1", 4001)
     cdn_dir = ""
     wiki_db = ""
-    passthrough = False  # PHP 엔진(DokuWiki·MediaWiki)·내장 마크다운 엔진: 고치지 않고 그대로 넘긴다
+    passthrough = False  # --pass: 고치지 않고 그대로 넘긴다(openNAMU 가 아닌 엔진을 붙일 때)
 
     def _send_bytes(self, body, ctype):
         self.send_response(200)

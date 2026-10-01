@@ -55,7 +55,7 @@ class Engine:
         args, cwd, env = self.command()
         out = open(log_path, "a", encoding="utf-8", errors="replace")
         flags = 0x08000000 if os.name == "nt" else 0
-        # 리눅스: 새 프로세스 묶음으로 띄워, 끌 때 PHP 서버의 일꾼 프로세스까지 함께 끈다(panel.stop)
+        # 리눅스: 새 프로세스 묶음으로 띄워, 끌 때 묶음째 끈다(panel.stop)
         return subprocess.Popen(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, env=env, creationflags=flags,
                                 start_new_session=os.name != "nt")
 
@@ -83,23 +83,6 @@ class Engine:
 
     def count(self):
         return sum(1 for _ in self.titles())
-
-    # ---- 플러그인(엔진마다)
-    plugin_search = False   # 저장소에서 찾아 설치할 수 있나(DokuWiki)
-    plugin_note = "이 엔진은 키트에서 켜고 끌 플러그인이 없습니다."
-
-    def plugins(self):
-        """[{id, name, desc, on, locked}] — locked 는 엔진이 꼭 필요로 해서 끌 수 없는 것."""
-        return []
-
-    def set_plugin(self, pid, on, log=print):
-        raise ValueError("이 엔진은 플러그인이 없습니다")
-
-    def search_plugins(self, q):
-        return []
-
-    def install_plugin(self, pid, log=print):
-        raise ValueError("이 엔진은 저장소에서 플러그인을 받지 않습니다")
 
     def info(self):
         return {}

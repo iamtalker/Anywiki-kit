@@ -1,9 +1,9 @@
 ﻿# 애니위키 키트 도구 준비: 윈도우용 파이썬(임베디드)을 받아 해시를 확인하고 푼다.
-# 위키 엔진(openNAMU·Markdown·DokuWiki·MediaWiki)은 관리판의 '엔진' 칸에서 고르면 kit.py 가 설치한다.
+# 위키 엔진(openNAMU)은 관리판의 '설치' 칸에서 누르면 kit.py 가 설치한다.
 #   powershell -File scripts\install.ps1            # 파이썬만 받기
-#   powershell -File scripts\install.ps1 -Engine dokuwiki   # 파이썬 + 그 엔진까지(관리판 없이)
+#   powershell -File scripts\install.ps1 -Install   # 파이썬 + 엔진까지(관리판 없이)
 param(
-    [string]$Engine = '',
+    [switch]$Install,
     [switch]$ToolsOnly   # 예전 판과 같게 받아 둔다(지금은 기본이 도구만)
 )
 $ErrorActionPreference = 'Stop'
@@ -30,8 +30,8 @@ Get-Verified $t.python.url $pyZip $t.python.sha256
 $python = Join-Path $Tools 'python\python.exe'
 if (-not (Test-Path $python)) { Expand-Archive $pyZip (Join-Path $Tools 'python') -Force }
 Write-Host '  완료'
-if ($Engine -eq '') { exit 0 }
+if (-not $Install) { exit 0 }
 
 $env:PYTHONUTF8 = '1'
-& $python (Join-Path $PSScriptRoot 'kit.py') install $Engine
-if ($LASTEXITCODE -ne 0) { throw "엔진 설치 실패: $Engine" }
+& $python (Join-Path $PSScriptRoot 'kit.py') install
+if ($LASTEXITCODE -ne 0) { throw '엔진 설치 실패' }
