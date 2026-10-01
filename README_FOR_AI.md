@@ -86,6 +86,8 @@
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
 
 ### 2026-10-02 — 0.6 안정화(범위 줄이기)
+- **상시 규칙(주인)**: 유어위키(`iamtalker/yourwiki`)에서 **공통 기능**(관리판·중계 서버·내보내기·`wiki_pack`·터널·설치 스크립트·Docker·새 판 알림)을 고치면
+  여기에도 같은 수정을 적용한다. 나무위키 전용 기능은 해당 없음. 유어위키의 `wiki_pack`·`panel`·`offline_proxy` 는 같은 계열이니 고칠 때 서로 비교할 것.
 - 주인 추가 지시 "유어위키와 같게 맞춰": 가져오기는 openNAMU 형식(.db)만, 내보내기는 네 형식(유어위키와 같음). `read_mediawiki`·`read_dokuwiki`·`read_markdown` 제거(wikiconv 의 Reader 는 라이브러리로 남김).
 - 주인 결정: 엔진은 openNAMU 만, 변환 도구는 유지. 제거: `engines/{dokuwiki,mediawiki,markdown,php}.py`, `mdwiki.py`,
   `cowiki.py`, `dht.py`, `ed25519.py`, 관리판의 엔진 바꾸기·플러그인·공동위키 칸, `transfer.py switch`, `kit.py engine|plugin`, `anywiki.sh switch|plugin|cowiki`,
