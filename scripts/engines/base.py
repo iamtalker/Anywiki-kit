@@ -30,7 +30,7 @@ def port_open(port, host="127.0.0.1"):
 class Engine:
     name = ""
     syntax = ""            # wikiconv 형식 이름
-    port = 3001            # 엔진이 받는 내부 포트(중계 서버가 3000 에서 받아 넘긴다)
+    port = 4001            # 엔진이 받는 내부 포트(중계 서버가 4000 에서 받아 넘긴다)
     write_while_running = True   # 켜진 채로 문서를 넣어도 되나(openNAMU 는 아니오)
 
     def __init__(self, root):

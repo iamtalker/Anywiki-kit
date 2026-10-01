@@ -45,7 +45,7 @@
 
 <h2>5. 켜기</h2>
 <div class="cmd"><code>bash server/anywiki.sh start</code><button>복사</button></div>
-<p class="muted">브라우저로 <code>http://서버주소:3000</code> 에 접속합니다.</p>
+<p class="muted">브라우저로 <code>http://서버주소:4000</code> 에 접속합니다.</p>
 
 <h2>6. 부팅할 때 자동으로 켜기 (선택)</h2>
 <div class="cmd"><code>sudo bash server/anywiki.sh install-service</code><button>복사</button></div>
@@ -53,11 +53,11 @@
 <h2>7. 자주 쓰는 명령</h2>
 <div class="cmd"><code>bash server/anywiki.sh status</code><button>복사</button></div>
 <div class="cmd"><code>bash server/anywiki.sh stop</code><button>복사</button></div>
-<div class="cmd"><code>LISTEN=127.0.0.1:3000 bash server/anywiki.sh start</code><button>복사</button></div>
+<div class="cmd"><code>LISTEN=127.0.0.1:4000 bash server/anywiki.sh start</code><button>복사</button></div>
 <div class="cmd"><code>TUNNEL=on bash server/anywiki.sh start</code><button>복사</button></div>
 <div class="cmd"><code>bash server/anywiki.sh switch mediawiki</code><button>복사</button></div>
 <div class="cmd"><code>bash server/anywiki.sh export markdown</code><button>복사</button></div>
-<p class="muted"><code>LISTEN</code>: 받을 주소(기본 <code>0.0.0.0:3000</code> = 외부 공개). <code>TUNNEL=on</code>: 공인 IP 없이 Cloudflare 임시 주소(https)로 공개(주소는 status 로 확인, 켤 때마다 바뀜).
+<p class="muted"><code>LISTEN</code>: 받을 주소(기본 <code>0.0.0.0:4000</code> = 외부 공개). <code>TUNNEL=on</code>: 공인 IP 없이 Cloudflare 임시 주소(https)로 공개(주소는 status 로 확인, 켤 때마다 바뀜).
 한 번 준 값은 <code>anywiki.conf</code> 에 기억되어 다음부터 그냥 <code>start</code> 해도 그대로입니다.
 <code>switch</code>: 엔진 바꾸기(문서를 새 엔진 문법으로 통역해 옮기고, 옛 엔진 데이터는 <code>wikis/</code> 에 남김). <code>export</code>: <code>export/</code> 에 내보내기.</p>
 
@@ -65,8 +65,8 @@
 <ol>
   <li><b>관리자 계정</b>: openNAMU 는 위키에서 처음 가입한 사람이 관리자가 됩니다(켜자마자 먼저 가입). 다른 엔진은 설치 때 알려 준 admin 계정(<code>bash server/anywiki.sh status</code> 로 다시 보기).</li>
   <li><b>편집 권한</b>: 관리자 설정에서 누구나 / 가입자만 / 읽기 전용 중에서 정하세요.</li>
-  <li><b>HTTPS</b>: nginx 나 Caddy 를 3000번 앞에 두면 됩니다. 예) Caddy: <code>reverse_proxy 127.0.0.1:3000</code></li>
-  <li><b>방화벽</b>: 3000번(또는 80/443) 포트를 여세요.</li>
+  <li><b>HTTPS</b>: nginx 나 Caddy 를 4000번 앞에 두면 됩니다. 예) Caddy: <code>reverse_proxy 127.0.0.1:4000</code></li>
+  <li><b>방화벽</b>: 4000번(또는 80/443) 포트를 여세요.</li>
   <li><b>연락처</b>: 삭제·권리 침해 요청을 받을 연락처를 위키에 적어 두세요.</li>
 </ol>
 

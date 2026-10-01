@@ -10,7 +10,7 @@ openNAMU 는 CDN 주소와 외부 삽입(유튜브 등)을 프로그램 안에 �
   5) 관리판에서 고른 머리글 색, 휴대폰 화면 다듬기, 검색창 제목 자동완성, 아무 문서나 보기 단추를 붙인다.
 DB 의 문서 원문은 건드리지 않는다.
 
-사용: python offline_proxy.py <assets 폴더> [--listen 127.0.0.1:3000] [--upstream 127.0.0.1:3001] [--wiki-db wikis/opennamu/data.db] [--pass]
+사용: python offline_proxy.py <assets 폴더> [--listen 127.0.0.1:4000] [--upstream 127.0.0.1:4001] [--wiki-db wikis/opennamu/data.db] [--pass]
 """
 import argparse
 import html
@@ -19,6 +19,7 @@ import http.server
 import json
 import mimetypes
 import os
+import pathlib
 import re
 import socketserver
 import sqlite3
@@ -167,7 +168,7 @@ def add_suggest(body):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    upstream = ("127.0.0.1", 3001)
+    upstream = ("127.0.0.1", 4001)
     cdn_dir = ""
     wiki_db = ""
     passthrough = False  # PHP 엔진(DokuWiki·MediaWiki)·내장 마크다운 엔진: 고치지 않고 그대로 넘긴다
@@ -186,7 +187,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         out = []
         if q:
             try:
-                db = sqlite3.connect(f"file:{os.path.abspath(self.wiki_db)}?mode=ro", uri=True, timeout=5)
+                db = sqlite3.connect(pathlib.Path(self.wiki_db).resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
                 out = [r[0] for r in db.execute(
                     "select title from data where title >= ? and title < ? order by title limit 10",
                     (q, q + "\U0010ffff"))]
@@ -280,8 +281,8 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("assets_dir")
-    ap.add_argument("--listen", default="127.0.0.1:3000")
-    ap.add_argument("--upstream", default="127.0.0.1:3001")
+    ap.add_argument("--listen", default="127.0.0.1:4000")
+    ap.add_argument("--upstream", default="127.0.0.1:4001")
     ap.add_argument("--wiki-db", default="", help="openNAMU 위키 DB(wikis/opennamu/data.db). 주면 검색창에 제목 자동완성이 생긴다")
     ap.add_argument("--pass", dest="passthrough", action="store_true",
                     help="고치지 않고 그대로 넘긴다(openNAMU 가 아닌 엔진)")

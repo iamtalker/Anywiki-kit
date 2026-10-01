@@ -10,6 +10,7 @@ import calendar
 import html
 import json
 import os
+import pathlib
 import re
 import secrets
 import sqlite3
@@ -81,7 +82,7 @@ class MediaWiki(Engine):
             pw = secrets.token_urlsafe(12)
             log("MediaWiki 위키 만들기(공식 설치 스크립트)")
             self.maint("install", "--dbtype=sqlite", f"--dbpath={self.data}", "--dbname=anywiki",
-                       "--server=http://127.0.0.1:3000", "--scriptpath=", "--lang=ko", f"--pass={pw}",
+                       "--server=http://127.0.0.1:4000", "--scriptpath=", "--lang=ko", f"--pass={pw}",
                        f"--confpath={self.app}", "애니위키", "admin", timeout=1800)
             with open(os.path.join(self.app, "LocalSettings.php"), "a", encoding="utf-8") as f:
                 f.write("\n# ---- 애니위키 키트 설정\n"
@@ -170,7 +171,7 @@ class MediaWiki(Engine):
 
     # ---- 문서 읽기(SQLite 직접)
     def _db(self):
-        return sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=30)
+        return sqlite3.connect(pathlib.Path(self.db_path).resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
 
     @staticmethod
     def _title(ns, t):

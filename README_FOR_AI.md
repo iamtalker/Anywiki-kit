@@ -30,9 +30,9 @@
 
 | 포트 | 무엇 | 파일 |
 |---|---|---|
-| 3100 | 관리판(127.0.0.1 전용, Origin 검사) | `scripts/panel.py` (HTML·JS 가 파일 안 `PAGE` 문자열에 있음) |
-| 3000 | 사용자에게 보이는 위키. openNAMU 면 오프라인 자원 치환·색·휴대폰 CSS, 다른 엔진이면 `--pass`(그대로 전달, Host 유지) | `scripts/offline_proxy.py` |
-| 3001 | 지금 엔진(`wikis/엔진/`) | `scripts/engines/` |
+| 4100 | 관리판(127.0.0.1 전용, Origin 검사) | `scripts/panel.py` (HTML·JS 가 파일 안 `PAGE` 문자열에 있음) |
+| 4000 | 사용자에게 보이는 위키. openNAMU 면 오프라인 자원 치환·색·휴대폰 CSS, 다른 엔진이면 `--pass`(그대로 전달, Host 유지) | `scripts/offline_proxy.py` |
+| 4001 | 지금 엔진(`wikis/엔진/`) | `scripts/engines/` |
 
 (2026-09-29 바뀜: 0.1 은 openNAMU 하나였고 `wiki/` 에 있었다. 0.3 부터 엔진 4개, `wikis/엔진이름/`. `kit.migrate()` 가 옛 폴더를 옮긴다.)
 
@@ -54,10 +54,10 @@
 - 플러그인: `Engine.plugins()/set_plugin()/search_plugins()/install_plugin()`, `plugin_search`·`plugin_note`. 관리판 `/api/plugins`(GET)·`/api/plugin`·
   `/api/plugin_search`·`/api/plugin_install`(→ `kit.py plugin install`, plugin.log). DokuWiki 저장소 주소는 `sources.json` 의 `plugin_repos`,
   시험 때는 `ANYWIKI_DOKU_REPO`(이때만 http 허용). 진짜 저장소(dokuwiki.org)는 이 환경에서 막혀 있어 API 모양(`fmt=json`, `q`, `ext[]`)은 문서 기준이다(주인 PC 에서 확인 필요).
-- 공동위키 `scripts/cowiki.py <root> run|id|name|add|remove|list|sync`: 창구 HTTP(127.0.0.1:3002, `/cowiki/hello`, `/cowiki/changes?since=`),
+- 공동위키 `scripts/cowiki.py <root> run|id|name|add|remove|list|sync`: 창구 HTTP(127.0.0.1:4002, `/cowiki/hello`, `/cowiki/changes?since=`),
   저장소 `wikis/_cowiki/cowiki.db`(members·journal(문서마다 마지막 판의 AWM)·applied(받아 넣은 판의 해시 — 다시 퍼뜨리지 않기)·meta).
   요청 서명 = `canonical({from,to,t,path})`, 응답 서명 = 본문 전체(`to`·`since` 포함). 엔진이 바뀌면 그때부터의 편집만 나눈다.
-  관리판은 `cowiki` + `cowiki_tunnel`(3002 전용 cloudflared) 프로세스, 설정 `cowiki_on`. DHT 는 `dht.py`(salt `anywiki-cowiki`), 시험은 `tests/fake_dht.py`.
+  관리판은 `cowiki` + `cowiki_tunnel`(4002 전용 cloudflared) 프로세스, 설정 `cowiki_on`. DHT 는 `dht.py`(salt `anywiki-cowiki`), 시험은 `tests/fake_dht.py`.
 - 요구 명세: `docs/SPEC.md`(주인이 요구한 것 목록 + 구현 결정). 요구가 늘면 여기에 먼저 적는다.
 
 ## 4. 시험하는 법
@@ -66,14 +66,14 @@
   `test_engines.py`(마크다운 엔진, 4형식 내보내기→가져오기; `ANYWIKI_DOKU_LAYER=받아둔.tgz` 와 php 가 있으면 DokuWiki 바꾸기까지).
 - `python3 -m pyflakes scripts/*.py scripts/engines/*.py scripts/wikiconv/*.py tests/*.py`, `bash -n server/*.sh docker/entrypoint.sh`.
 - 실제 동작: 임시 폴더에 `scripts assets server docker sources.json` 을 복사하고, 받아 둔 층 파일(`tools/sha256_….tgz`)도 복사해 두면 다시 받지 않는다.
-  `python3 scripts/panel.py --no-browser` → `curl -XPOST -H Origin:http://127.0.0.1:3100 127.0.0.1:3100/api/install?engine=markdown` → `/api/start` → 3000 번 확인.
+  `python3 scripts/panel.py --no-browser` → `curl -XPOST -H Origin:http://127.0.0.1:4100 127.0.0.1:4100/api/install?engine=markdown` → `/api/start` → 4000 번 확인.
   관리판 화면은 playwright(`/opt/pw-browsers/chromium`)로 찍는다.
 - Windows(PowerShell·임베디드 파이썬·휴대용 PHP)는 이 환경에서 시험할 수 없다. 주인 PC 에서 확인해야 한다.
 
 ## 5. 환경에서 알게 된 것
 
 - `pkill -f 패턴` 은 그 패턴이 들어간 내 셸까지 죽인다. pid 파일이나 /proc 검사로 끈다.
-- 관리판을 고친 뒤 시험할 때 예전 관리판 프로세스가 3100 을 잡고 있지 않은지 확인한다.
+- 관리판을 고친 뒤 시험할 때 예전 관리판 프로세스가 4100 을 잡고 있지 않은지 확인한다.
 - 리눅스에서는 `cleanup_leftovers()` 가 아무것도 안 한다(Windows 전용).
 - 나무마크에서 백틱(`)은 문법을 막지 않는다. 문법 예시는 `{{{ }}}` 로 감싼다(첫 화면에서 분류가 실제로 붙던 문제).
 - git 태그 푸시는 이 환경의 git 프록시가 끊는다(가지 푸시는 됨). 태그·릴리스는 주인이 만든다.
@@ -98,6 +98,11 @@
 - [ ] GitHub 릴리스 만들기: 태그 v0.2·v0.3 에서(주인 몫).
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
+
+### 2026-10-02 — 0.5.1 (로컬 Windows 세션)
+- 주인 요청: 유어위키와 주소(포트)가 같아 같이 못 켜므로 바꿈 → 관리판 4100, 위키 4000, 엔진 4001, 공동위키 4002. (유어위키는 3100·3000·3001·3002)
+- 유어위키에서 고친 Windows 경로 버그(`file:` URI)를 여기도 고침. 시험은 `PYTHONUTF8=1 python tests/run_all.py`.
+- 주인 말: 도쿠위키·미디어위키까지 다 지원하려던 건 욕심이었던 것 같다 → 유어위키에서 나무위키 동기화만 뺀 수준으로 안정화하는 방향(범위는 주인과 확인 중).
 
 ### 2026-09-29 — 릴리스 자동화
 - 주인이 "왜 릴리스 못 하나" 물음. 이유: 이 환경의 git 프록시가 태그 푸시를 끊고, GitHub 도구에는 릴리스 만들기가 없으며 gh·API 토큰도 없다.

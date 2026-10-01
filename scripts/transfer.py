@@ -16,7 +16,8 @@ import argparse
 import gzip
 import html
 import json
-import os
+import os
+import pathlib
 import re
 import sqlite3
 import sys
@@ -225,7 +226,7 @@ def detect(path):
 
 def read_opennamu(path):
     from engines.opennamu import from_db_title
-    db = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=30)
+    db = sqlite3.connect(pathlib.Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
     try:
         has_set = db.execute("select 1 from sqlite_master where name = 'data_set'").fetchone()
         for t, text in db.execute("select title, data from data").fetchall():

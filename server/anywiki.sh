@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 애니위키 리눅스 서버 켜기·끄기
 #
-#   bash server/anywiki.sh start            # 켜기 (기본: 0.0.0.0:3000 으로 공개)
+#   bash server/anywiki.sh start            # 켜기 (기본: 0.0.0.0:4000 으로 공개)
 #   bash server/anywiki.sh stop | status
 #   bash server/anywiki.sh switch <엔진>     # 엔진 바꾸기(opennamu·markdown·dokuwiki·mediawiki). 문서를 통역해 옮긴다
 #   bash server/anywiki.sh export <형식>     # export/ 에 내보내기(opennamu·mediawiki·dokuwiki·markdown)
@@ -10,13 +10,13 @@
 #   bash server/anywiki.sh cowiki id|list|name 이름|add ID [이름] [주소]|remove ID   # 공동위키 회원(켜기는 COWIKI=on)
 #   sudo bash server/anywiki.sh install-service   # systemd 에 등록해 부팅 때 자동 시작
 #
-# 환경 변수: LISTEN(기본 0.0.0.0:3000)
+# 환경 변수: LISTEN(기본 0.0.0.0:4000)
 #            TUNNEL(on|off, 기본 off): 공인 IP·공유기 설정 없이 Cloudflare 임시 주소(https)로 공개. 주소는 status 로 확인
 #            COWIKI(on|off, 기본 off): 공동위키(서로 ID 를 등록한 위키끼리 편집 주고받기)
-#            COWIKI_URL: 공동위키 창구의 고정 주소(예: http://내서버:3002). 없으면 Cloudflare 임시 주소를 따로 만든다
+#            COWIKI_URL: 공동위키 창구의 고정 주소(예: http://내서버:4002). 없으면 Cloudflare 임시 주소를 따로 만든다
 #            UPDATE_NOTICE(on|off, 기본 on): GitHub 에 새 판이 나왔는지 켤 때 알려 주기(알리기만 함)
 # 한 번 준 값은 anywiki.conf 에 기억되어 다음에 그냥 start 해도 그대로 쓴다. 바꾸려면 새 값을 주고 start.
-# 엔진은 설치·switch 때 panel.json 에 기억된다. HTTPS 는 nginx·Caddy 같은 역방향 프록시를 3000번 앞에 두세요.
+# 엔진은 설치·switch 때 panel.json 에 기억된다. HTTPS 는 nginx·Caddy 같은 역방향 프록시를 4000번 앞에 두세요.
 set -euo pipefail
 KIT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$KIT"
@@ -37,7 +37,7 @@ save_conf() {
   mv -f "$tmp" "$CONF"
 }
 export PYTHONUTF8=1
-LISTEN="${LISTEN:-0.0.0.0:3000}"
+LISTEN="${LISTEN:-0.0.0.0:4000}"
 ENGINE="${ENGINE:-$(python3 scripts/kit.py engine)}"
 export ENGINE
 RUN="$KIT/run"; mkdir -p "$RUN"
@@ -67,7 +67,7 @@ case "${1:-}" in
     else
       PROXY_MODE=(--pass)
     fi
-    launch proxy proxy.log python3 scripts/offline_proxy.py assets --listen "$LISTEN" --upstream 127.0.0.1:3001 "${PROXY_MODE[@]}"
+    launch proxy proxy.log python3 scripts/offline_proxy.py assets --listen "$LISTEN" --upstream 127.0.0.1:4001 "${PROXY_MODE[@]}"
     if [ "${TUNNEL:-off}" = on ]; then
       if CF=$(python3 scripts/cloudflared.py); then
         running tunnel || : > "$RUN/tunnel.log"
@@ -79,12 +79,12 @@ case "${1:-}" in
     fi
     if [ "${COWIKI:-off}" = on ]; then
       if [ -n "${COWIKI_URL:-}" ]; then
-        launch cowiki cowiki.log python3 scripts/cowiki.py "$KIT" run --listen 0.0.0.0:3002 --self-url "$COWIKI_URL"
+        launch cowiki cowiki.log python3 scripts/cowiki.py "$KIT" run --listen 0.0.0.0:4002 --self-url "$COWIKI_URL"
       else
         running cowiki_tunnel || : > "$RUN/cowiki-tunnel.log"
         launch cowiki cowiki.log python3 scripts/cowiki.py "$KIT" run --tunnel-log "$RUN/cowiki-tunnel.log"
         if CF=$(python3 scripts/cloudflared.py); then
-          launch cowiki_tunnel cowiki-tunnel.log "$CF" tunnel --no-autoupdate --url http://127.0.0.1:3002
+          launch cowiki_tunnel cowiki-tunnel.log "$CF" tunnel --no-autoupdate --url http://127.0.0.1:4002
         fi
       fi
       echo "공동위키를 켰습니다. 내 ID: $(python3 scripts/cowiki.py "$KIT" id)"

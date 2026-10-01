@@ -1,5 +1,6 @@
 """openNAMU 엔진(나무마크, SQLite data.db, Go 로 만든 실행 파일 하나)."""
-import os
+import os
+import pathlib
 import platform
 import re
 import sqlite3
@@ -72,7 +73,7 @@ class OpenNamu(Engine):
     # ---- 문서
     def _db(self, ro=False):
         if ro:
-            return sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=30)
+            return sqlite3.connect(pathlib.Path(self.db_path).resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
         return sqlite3.connect(self.db_path, timeout=60)
 
     def titles(self):

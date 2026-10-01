@@ -1,8 +1,8 @@
 """애니위키 관리판: 엔진 고르기·설치·켜기·끄기·공개·내보내기·가져오기 (파이썬 표준 라이브러리만).
 
-    python panel.py            # http://127.0.0.1:3100 에 관리판을 열고 브라우저를 띄운다
+    python panel.py            # http://127.0.0.1:4100 에 관리판을 열고 브라우저를 띄운다
 
-관리판이 위키 엔진(3001)과 중계 서버(3000)를 띄우고 끈다. 엔진은 openNAMU · Markdown(내장) · DokuWiki · MediaWiki.
+관리판이 위키 엔진(4001)과 중계 서버(4000)를 띄우고 끈다. 엔진은 openNAMU · Markdown(내장) · DokuWiki · MediaWiki.
 """
 import json
 import os
@@ -23,10 +23,10 @@ import kit  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPTS)
-PANEL_PORT = 3100
+PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.5"
+KIT_VERSION = "0.5.1"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3", ".xml", ".xml.gz", ".zip", ".md")
@@ -41,7 +41,7 @@ ENGINE_DESC = {
 procs = {}
 lock = threading.Lock()
 _cache = {}
-DEFAULTS = {"listen": "127.0.0.1:3000", "color": "#3b5bdb"}
+DEFAULTS = {"listen": "127.0.0.1:4000", "color": "#3b5bdb"}
 
 
 def settings():
@@ -104,7 +104,7 @@ def busy():
 def start_proxy():
     stop("proxy")
     args = [sys.executable, os.path.join(SCRIPTS, "offline_proxy.py"), os.path.join(ROOT, "assets"),
-            "--listen", settings()["listen"], "--upstream", "127.0.0.1:3001"]
+            "--listen", settings()["listen"], "--upstream", "127.0.0.1:4001"]
     if engine_name() == "opennamu":  # openNAMU 화면에만 키트 모양(색·글꼴)을 입힌다
         args += ["--wiki-db", os.path.join(eng().dir, "data.db")]
     else:
@@ -305,7 +305,7 @@ def cowiki_start():
     try:  # 공동위키 전용 임시 공개 주소(위키 자체는 공개하지 않아도 된다)
         import cloudflared
         exe = cloudflared.ensure()
-        spawn("cowiki_tunnel", [exe, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:3002"], "cowiki-tunnel.log")
+        spawn("cowiki_tunnel", [exe, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:4002"], "cowiki-tunnel.log")
     except Exception as e:
         return f"공동위키를 켰지만 터널 프로그램을 받지 못했습니다({e}). 회원에게서 받기만 합니다"
     return "공동위키를 켰습니다. 잠시 뒤 창구 주소가 생기면 회원들과 주고받습니다"
@@ -502,7 +502,7 @@ DokuWiki: DokuWiki 폴더에 풀고 <code>php bin/indexer.php</code> · Markdown
 <p style="font-size:12px;color:#777">12시간에 한 번 GitHub(iamtalker/anywiki-kit)의 최신 릴리스만 확인합니다. 보내는 정보는 없고, 스스로 설치하지 않습니다.
 새 판은 직접 받아 이 폴더에 덮어쓰세요(<code>wikis</code> 폴더는 그대로 두면 됩니다).</p></details>
 <script>
-let listen="127.0.0.1:3000";
+let listen="127.0.0.1:4000";
 async function api(p){const r=await fetch(p,{method:'POST'});return (await r.json()).msg}
 async function act(a){alert(await api('/api/'+a));load()}
 async function act2(p){alert(await api('/api/'+p));load()}

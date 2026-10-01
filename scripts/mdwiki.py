@@ -3,7 +3,7 @@
 문서는 wikis/markdown/pages/<제목>.md 파일로 두고(Obsidian 같은 편집기로 폴더째 열 수 있음),
 역사·분류·설정은 wikis/markdown/wiki.db(SQLite)에 둔다.
 
-    python mdwiki.py <wikis/markdown 폴더> [--port 3001] [--host 127.0.0.1]
+    python mdwiki.py <wikis/markdown 폴더> [--port 4001] [--host 127.0.0.1]
 
 문법: 마크다운(GitHub 방식) + 위키 링크 [[문서|글]], 각주 [^1], 분류는 머리말(categories) 또는 문서 끝 '분류:' 줄.
 편집 권한: 설정의 edit = "all"(누구나) 또는 "admin"(관리자만, 기본). 관리자 비밀번호는 설치할 때 정한다.
@@ -437,7 +437,7 @@ def set_password(store, pw):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
-    ap.add_argument("--port", type=int, default=3001)
+    ap.add_argument("--port", type=int, default=4001)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--assets", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"))
     ap.add_argument("--set-password", default="")

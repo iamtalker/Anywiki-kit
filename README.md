@@ -84,14 +84,14 @@ DokuWiki·MediaWiki·Markdown 은 설치할 때 관리자 계정(`admin`)과 비
   'ID → 주소'를 BitTorrent 공용 연결망(DHT)에 서명해 올립니다. 인터넷이 이를 막으면 고정 주소를 쓰거나 회원 주소를 직접 적으세요.
 - 요청과 응답을 모두 서명하므로 다른 사람이 회원인 척하거나 주소를 가로채 끼어들 수 없습니다. 단, **회원은 내 위키의 어느 문서든 고칠 수 있으니** 믿는 위키만 등록하세요.
 
-리눅스: `COWIKI=on bash server/anywiki.sh start`(고정 주소가 있으면 `COWIKI_URL=http://내서버:3002`), `bash server/anywiki.sh cowiki id`,
+리눅스: `COWIKI=on bash server/anywiki.sh start`(고정 주소가 있으면 `COWIKI_URL=http://내서버:4002`), `bash server/anywiki.sh cowiki id`,
 `cowiki add 상대ID 이름`, `cowiki list`, `cowiki remove 상대ID`. Docker: `COWIKI=on`, 회원 등록은 `docker compose exec anywiki python3 scripts/cowiki.py /kit add 상대ID 이름`.
 
 ## 인터넷에 공개하려면
 
 - **간단히**: 관리판의 **인터넷에 공개 → [공개하기]**. 공유기 설정 없이 Cloudflare 임시 주소(https)가 생깁니다. 켤 때마다 주소가 바뀌고,
   [공개 끄기]를 누르기 전까지는 위키를 켤 때마다 다시 공개됩니다. 네 엔진 모두 됩니다.
-- **직접**: `panel.json` 의 `listen` 을 `0.0.0.0:3000` 으로 바꾸거나 아래처럼 리눅스·Docker 로 서버에 올립니다.
+- **직접**: `panel.json` 의 `listen` 을 `0.0.0.0:4000` 으로 바꾸거나 아래처럼 리눅스·Docker 로 서버에 올립니다.
 
 공개하는 순간 **그 사이트의 운영 책임은 공개한 사람에게** 있습니다(권리 침해·게시중단 요청 대응 등).
 
@@ -121,7 +121,7 @@ DokuWiki·MediaWiki·Markdown 은 설치할 때 관리자 계정(`admin`)과 비
 ```bash
 git clone https://github.com/iamtalker/anywiki-kit && cd anywiki-kit
 bash server/install.sh opennamu         # 엔진: opennamu · markdown · dokuwiki · mediawiki
-bash server/anywiki.sh start            # 켜기 (0.0.0.0:3000)
+bash server/anywiki.sh start            # 켜기 (0.0.0.0:4000)
 bash server/anywiki.sh status           # 상태·문서 수·관리자 계정
 bash server/anywiki.sh switch mediawiki # 엔진 바꾸기(문서를 통역해 옮김)
 bash server/anywiki.sh export markdown  # export/ 에 내보내기
@@ -129,9 +129,9 @@ bash server/anywiki.sh import 파일      # 가져오기
 sudo bash server/anywiki.sh install-service   # 부팅 때 자동 시작(systemd)
 ```
 
-- 환경 변수: `LISTEN`(기본 `0.0.0.0:3000`), `TUNNEL=on`(Cloudflare 임시 주소로 공개, 주소는 `status`), `UPDATE_NOTICE=off`.
+- 환경 변수: `LISTEN`(기본 `0.0.0.0:4000`), `TUNNEL=on`(Cloudflare 임시 주소로 공개, 주소는 `status`), `UPDATE_NOTICE=off`.
   한 번 준 값은 `anywiki.conf` 에 기억되어 다음부터 그냥 `start` 해도 그대로입니다(systemd 서비스도 이 파일을 따름).
-- HTTPS 는 nginx·Caddy 같은 역방향 프록시를 3000번 앞에 두면 됩니다.
+- HTTPS 는 nginx·Caddy 같은 역방향 프록시를 4000번 앞에 두면 됩니다.
 
 ## Docker
 
@@ -140,7 +140,7 @@ git clone https://github.com/iamtalker/anywiki-kit && cd anywiki-kit
 ENGINE=dokuwiki docker compose up -d        # 처음엔 엔진 받기로 몇 분
 ```
 
-`ENGINE`(기본 `opennamu`), `PORT`(바깥 포트, 기본 3000), `COLOR`(머리글 색), `UPDATE_NOTICE` 로 설정합니다.
+`ENGINE`(기본 `opennamu`), `PORT`(바깥 포트, 기본 4000), `COLOR`(머리글 색), `UPDATE_NOTICE` 로 설정합니다.
 위키는 `./anywiki-data/wikis` 에 저장됩니다. **`ENGINE` 을 바꿔 다시 올리면** 문서를 새 엔진으로 통역해 옮깁니다.
 관리자 계정은 `docker compose logs` 에 나옵니다.
 

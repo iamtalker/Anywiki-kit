@@ -14,7 +14,8 @@
     python wiki_pack.py import WIKI_DIR 파일
 """
 import argparse
-import os
+import os
+import pathlib
 import re
 import sqlite3
 import sys
@@ -50,7 +51,7 @@ class Progress:
 
 
 def ro(path):
-    return sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=60)
+    return sqlite3.connect(pathlib.Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=60)
 
 
 # ---------------------------------------------------------------- 내보내기
@@ -60,7 +61,7 @@ def export(wiki_dir, out):
     if os.path.exists(part):
         os.remove(part)
     src = ro(src_path)
-    dst = sqlite3.connect(part)
+    dst = sqlite3.connect(pathlib.Path(part).resolve().as_uri(), uri=True)  # ATTACH 의 file: 주소를 쓰려면 uri 연결이어야 한다
     dst.execute("pragma journal_mode = off")
     dst.execute("pragma synchronous = off")
     for t in TABLES:
@@ -71,7 +72,7 @@ def export(wiki_dir, out):
     dst.execute("create table yourwiki_pack (k text primary key, v text)")  # 유어위키와 같은 이름(서로 주고받을 수 있게)
     dst.commit()
     src.close()
-    dst.execute("attach database ? as s", (f"file:{os.path.abspath(src_path)}?mode=ro",))
+    dst.execute("attach database ? as s", (pathlib.Path(src_path).resolve().as_uri() + "?mode=ro",))
     total = dst.execute("select count(*) from s.data").fetchone()[0]
     print(f"문서 {total:,}개를 내보냅니다", flush=True)
     prog, n = Progress(total), 0

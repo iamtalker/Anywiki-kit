@@ -7,10 +7,10 @@
   그래서 세 위키가 모두 편집을 나누려면 서로서로 등록해야 한다.
 - 공용 언어: 문서는 AWM(확장 마크다운)으로 주고받고, 받는 쪽이 자기 엔진 문법으로 통역한다. 엔진이 달라도 된다.
 - 충돌: 마지막에 쓴 판이 이긴다(시각은 UTC). 10분 넘게 미래인 판은 받지 않는다. 지우기는 옮기지 않는다.
-- 주소: 창구(127.0.0.1:3002)는 공동위키 전용 임시 공개 주소(cloudflared)로 열거나 고정 주소를 쓴다.
+- 주소: 창구(127.0.0.1:4002)는 공동위키 전용 임시 공개 주소(cloudflared)로 열거나 고정 주소를 쓴다.
   'ID → 지금 창구 주소'는 BitTorrent DHT(dht.py)에 서명해 올려, 주소가 바뀌어도 회원이 찾아온다. 회원의 주소를 직접 적어도 된다.
 
-    python cowiki.py <root> run [--listen 127.0.0.1:3002] [--tunnel-log 파일 | --self-url URL] [--bootstrap 호스트:포트]
+    python cowiki.py <root> run [--listen 127.0.0.1:4002] [--tunnel-log 파일 | --self-url URL] [--bootstrap 호스트:포트]
     python cowiki.py <root> id | name 이름 | add ID [이름] [주소] | remove ID | list | sync
 """
 import argparse
@@ -517,7 +517,7 @@ def main():
     ap.add_argument("root")
     ap.add_argument("action", choices=["run", "id", "name", "add", "remove", "list", "sync"])
     ap.add_argument("args", nargs="*")
-    ap.add_argument("--listen", default="127.0.0.1:3002")
+    ap.add_argument("--listen", default="127.0.0.1:4002")
     ap.add_argument("--tunnel-log", default="")
     ap.add_argument("--self-url", default="")
     ap.add_argument("--bootstrap", action="append", default=None, help="DHT 시작 노드 호스트:포트(시험용)")
