@@ -1,4 +1,4 @@
-# 애니위키 키트 (Anywiki-kit)
+# 애니위키 키트 (anywiki-kit)
 
 누구나 자기 컴퓨터나 서버에 **나만의 위키(openNAMU)** 를 원터치로 띄울 수 있게 해 주는 도구입니다.
 관리판에서 설치·켜기·끄기·인터넷 임시 공개를 하고, 위키 문서를 **openNAMU · MediaWiki · DokuWiki · Markdown** 형식으로
@@ -100,7 +100,7 @@ docker compose up -d        # 처음엔 openNAMU 받기로 몇 분
 ## 이전 판(0.5 이하)에서 올릴 때
 
 0.6 부터 위키 엔진은 openNAMU 하나입니다(Markdown·DokuWiki·MediaWiki 엔진과 공동위키, 플러그인 칸은 뺐습니다).
-openNAMU 를 쓰던 위키는 `wikis/opennamu/` 가 그대로라 새 판을 덮어 풀면 됩니다. 다른 엔진을 쓰던 위키는 0.5.1 의 관리판에서 내보내기(openNAMU 형식)한 `.db` 파일을 새 판에서 **가져오기** 하세요. 0.5.1 은 [릴리스 v0.5.1](https://github.com/iamtalker/Anywiki-kit/releases/tag/v0.5.1) 에 있습니다.
+openNAMU 를 쓰던 위키는 `wikis/opennamu/` 가 그대로라 새 판을 덮어 풀면 됩니다. 다른 엔진을 쓰던 위키는 0.5.1 의 관리판에서 내보내기(openNAMU 형식)한 `.db` 파일을 새 판에서 **가져오기** 하세요. 0.5.1 은 [릴리스 v0.5.1](https://github.com/iamtalker/anywiki-kit/releases/tag/v0.5.1) 에 있습니다.
 포트는 0.5.1 부터 4100(관리판)·4000(위키)입니다.
 
 ## 폴더

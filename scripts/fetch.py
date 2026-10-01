@@ -8,7 +8,7 @@ import os
 import sys
 import urllib.request
 
-UA = "Anywiki-kit (+https://github.com/iamtalker/anywiki-kit)"
+UA = "anywiki-kit (+https://github.com/iamtalker/anywiki-kit)"
 
 
 def _get(url, headers=None, timeout=120):

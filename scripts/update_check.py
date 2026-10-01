@@ -18,7 +18,7 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, "update.json")
-UA = "Anywiki-kit-update-check (+https://github.com/iamtalker/anywiki-kit)"
+UA = "anywiki-kit-update-check (+https://github.com/iamtalker/anywiki-kit)"
 
 
 def config():

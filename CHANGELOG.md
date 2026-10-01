@@ -13,7 +13,7 @@
 - 그대로인 것: **내보내기·가져오기 네 형식**(openNAMU · MediaWiki · DokuWiki · Markdown)과 공용 언어 통역기, 임시 주소 공개, 리눅스·Docker 설치.
 - Docker 에서 PHP 를 빼 이미지가 작아졌고 `ENGINE`·`COWIKI` 환경 변수는 없어졌습니다. 리눅스 `install.sh` 는 엔진 인자를 받지 않습니다.
 - 이전 판에서 올릴 때: openNAMU 위키는 그대로 쓸 수 있습니다. 다른 엔진을 쓰던 위키는 0.5.1 에서 내보내기(openNAMU 형식)한 뒤 가져오세요(README).
-- 옛 기능이 필요하면 [v0.5.1](https://github.com/iamtalker/Anywiki-kit/releases/tag/v0.5.1) 을 쓰세요.
+- 옛 기능이 필요하면 [v0.5.1](https://github.com/iamtalker/anywiki-kit/releases/tag/v0.5.1) 을 쓰세요.
 
 ## 0.5.1 — 2026-10-02 (커밋 badcb76)
 **유어위키와 같이 켤 수 있게 주소를 바꾸고, Windows 에서 내보내기·옮기기가 실패하던 문제를 고쳤습니다.**
