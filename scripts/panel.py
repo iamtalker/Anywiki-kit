@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6.2"
+KIT_VERSION = "0.6.3"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
@@ -35,6 +35,7 @@ ENGINE_DESC = {"opennamu": "나무마크 문법. 실행 파일 하나라 가볍�
 
 procs = {}
 lock = threading.Lock()
+_bye = {"t": 0.0}  # 브라우저 창이 닫혔다는 신호를 받은 시각(0 이면 없음)
 _cache = {}
 DEFAULTS = {"listen": "127.0.0.1:4000", "color": "#3b5bdb"}
 
@@ -174,11 +175,94 @@ def start_wiki(open_browser=True):
     return "켰습니다. 준비되면 첫 화면이 자동으로 열립니다"
 
 
+def port_is_open(port):
+    from engines.base import port_open
+    return port_open(port)
+
+
+def sweep_wiki_processes():
+    """이 폴더의 위키 프로그램(엔진·중계 서버·터널)이 관리판이 기억하지 못한 채 남아 있으면 끈다(Windows).
+    설치·가져오기·내보내기 같은 작업의 프로세스는 건드리지 않는다(명령줄로 구분)."""
+    if not WIN:
+        return
+    ps = ("$root = '" + ROOT.replace("'", "''") + "'; "
+          "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne " + str(os.getpid()) + " -and "
+          "$_.ExecutablePath -and $_.ExecutablePath.StartsWith($root) -and ("
+          "$_.Name -in @('main.amd64.exe','cloudflared.exe') -or "
+          "($_.Name -eq 'python.exe' -and $_.CommandLine -match 'offline_proxy\\.py')) } | "
+          "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], creationflags=NO_WINDOW,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def wiki_ports():
+    ports = [eng().port]
+    try:
+        ports.append(int(settings()["listen"].rsplit(":", 1)[1]))
+    except (ValueError, IndexError):
+        pass
+    return ports
+
+
 def stop_wiki():
+    """위키를 확실히 끈다: 기억해 둔 프로세스를 끄고, 남은 것은 폴더 안 프로세스를 찾아 끄고, 포트가 비었는지 확인한다."""
     with lock:
         for n in ("tunnel", "proxy", "engine"):
             stop(n)
-    return "껐습니다"
+        sweep_wiki_processes()
+        busy_ports = []
+        for _ in range(20):  # 최대 10초 기다리며 포트가 닫히는지 본다
+            busy_ports = [p for p in wiki_ports() if port_is_open(p)]
+            if not busy_ports:
+                break
+            time.sleep(0.5)
+    if busy_ports:
+        who = port_owner(busy_ports[0])
+        return (f"껐지만 포트 {busy_ports[0]} 이 아직 열려 있습니다" + (f": {who[1]}" if who and who[1] else "")
+                + " — 작업 관리자에서 그 프로그램을 끄세요")
+    return "껐습니다(엔진·중계 서버·터널 모두 종료, 포트 닫힘 확인)"
+
+
+_job = None  # 관리판이 어떤 이유로든 끝나면 윈도우가 딸린 프로그램도 함께 끄도록 하는 작업 개체(닫히면 전부 종료)
+
+
+def kill_children_on_exit():
+    """Windows 작업 개체(Job Object): 관리판 창·콘솔을 그냥 닫아도 엔진·중계 서버 같은 딸린 프로세스가 남지 않게 한다."""
+    global _job
+    if not WIN:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class IO(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_ulonglong) for n in ("r", "w", "o", "rb", "wb", "ob")]
+
+        class BASIC(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class EXT(ctypes.Structure):
+            _fields_ = [("Basic", BASIC), ("Io", IO), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        # 64비트에서 핸들이 잘리지 않도록 인자·반환 형식을 선언한다(안 하면 조용히 실패한다)
+        k.CreateJobObjectW.restype = wintypes.HANDLE
+        k.CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+        k.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
+        k.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        k.GetCurrentProcess.restype = wintypes.HANDLE
+        job = k.CreateJobObjectW(None, None)
+        info = EXT()
+        info.Basic.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if job and k.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)) \
+                and k.AssignProcessToJobObject(job, k.GetCurrentProcess()):
+            _job = job  # 핸들을 붙잡아 둔다(프로세스가 끝나 핸들이 닫히면 작업 개체 안의 프로세스가 모두 종료됨)
+    except Exception:  # 작업 개체를 못 만들어도 관리판은 그대로 동작한다(다음 시작 때 정리)
+        _job = None
 
 
 def run_install(name):
@@ -296,7 +380,8 @@ def status():
     ready = run["engine"] and e.ready()
     starting = run["engine"] and not ready
     st = {"engine": name, "engine_name": engines.NAMES[name], "installed": installed, "listen": s["listen"],
-          "color": s.get("color", "#3b5bdb"), "running": run, "ready": ready, "kit": KIT_VERSION,
+          "color": s.get("color", "#3b5bdb"), "quit_on_close": s.get("quit_on_close", True),
+          "running": run, "ready": ready, "kit": KIT_VERSION,
           "engines": engine_status()}
     # 문서 수: 켜지는 중·작업 중에는 읽지 않고, 1분에 한 번만 센다. 마지막 수는 기억한다
     if installed and not starting and not busy() and time.time() - _cache.get("docs_at", 0) > 60:
@@ -335,7 +420,8 @@ code.pw{background:#fff4e0;padding:2px 6px;border-radius:4px}
 <details class="sec" id="sec-st" open><summary><h2>상태</h2><span class="sum" id="sum-st"></span></summary><div id="st">불러오는 중…</div></details>
 <details class="sec" id="sec-wiki" open><summary><h2>위키</h2><span class="sum" id="sum-wiki"></span></summary>
 <button onclick="act('start')">켜기</button><button onclick="act('stop')">끄기</button>
-<button onclick="openWiki()">위키 열기</button></details>
+<button onclick="openWiki()">위키 열기</button>
+<label style="margin-left:12px;font-size:13px"><input type="checkbox" id="quitclose" onchange="api('/api/quit_on_close?on='+(this.checked?1:0))"> 관리판 창을 닫으면 위키도 끄고 종료(설치·내보내기 중에는 닫아도 계속)</label></details>
 <details class="sec" id="sec-engine"><summary><h2>설치</h2><span class="sum" id="sum-engine"></span></summary>
 <div id="englist"></div>
 <pre id="englog"></pre></details>
@@ -435,10 +521,12 @@ document.getElementById('updst').textContent=u.on===false?'알림 꺼짐':(u.lat
 (u.checked_at?' · 확인 '+new Date(u.checked_at*1000).toLocaleString():''):(u.error?'확인하지 못했습니다: '+u.error:'확인 전'));
 sum('update',u.on===false?'꺼짐':(u.newer?'<b>새 판 '+esc(u.latest)+'</b>':(u.latest?'최신 판':'')));
 document.getElementById('swatch').style.background=s.color;document.getElementById('picker').value=s.color;
+var qc=document.getElementById('quitclose');if(qc&&document.activeElement!==qc)qc.checked=s.quit_on_close!==false;
 document.getElementById('pubinfo').innerHTML=s.public_url?('공개 주소: <a href="'+esc(s.public_url)+'" target=_blank>'+esc(s.public_url)+'</a>'):(s.running.tunnel?'공개 주소를 만드는 중…':'')}
 document.querySelectorAll('details.sec').forEach(function(d){
   try{var v=localStorage.getItem('kit-'+d.id);if(v!==null)d.open=v==='1'}catch(e){}
   d.addEventListener('toggle',function(){try{localStorage.setItem('kit-'+d.id,d.open?'1':'0')}catch(e){}})});
+window.addEventListener('pagehide',function(){try{navigator.sendBeacon('/api/bye')}catch(e){}});
 load();setInterval(load,3000);
 </script></html>"""
 
@@ -457,6 +545,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path in ("/", "/api/status"):
+            _bye["t"] = 0.0  # 창이 다시 열렸거나 새로 고침 — 닫힘 신호를 취소한다
         if path == "/":
             return self.send(200, PAGE, "text/html; charset=utf-8")
         if path == "/api/status":
@@ -477,6 +567,14 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/stop":
             remember(wiki_on=False)
             msg = stop_wiki()
+        elif u.path == "/api/bye":  # 브라우저가 관리판 창을 닫을 때 보내는 신호(새로 고침이면 곧 취소됨)
+            if settings().get("quit_on_close", True):
+                _bye["t"] = time.time()
+            msg = "ok"
+        elif u.path == "/api/quit_on_close":
+            on = arg("on", "1") == "1"
+            remember(quit_on_close=on)
+            msg = "관리판 창을 닫으면 위키도 " + ("끕니다" if on else "끄지 않습니다(다음에 관리판을 열 때 정리됨)")
         elif u.path == "/api/color":
             c = arg("c")
             if re.fullmatch(r"#[0-9a-fA-F]{6}", c):
@@ -532,7 +630,23 @@ def update_loop():
         time.sleep(3600)
 
 
+def close_watcher(srv):
+    """브라우저 창이 닫힌 지 10초가 지나도 다시 열리지 않으면 위키를 끄고 관리판을 끝낸다(설치·가져오기·내보내기 중에는 안 끝냄)."""
+    while True:
+        time.sleep(2)
+        t = _bye["t"]
+        if not t or time.time() - t < 10:
+            continue
+        if any(alive(n) for n in ("install", "import", "export")) or not settings().get("quit_on_close", True):
+            _bye["t"] = 0.0
+            continue
+        print("관리판 창이 닫혀 위키를 끄고 종료합니다", flush=True)
+        threading.Thread(target=srv.shutdown, daemon=True).start()  # serve_forever 가 끝나면 finally 에서 stop_wiki
+        return
+
+
 def main():
+    kill_children_on_exit()
     cleanup_leftovers()
     kit.migrate(ROOT)
     os.makedirs(IMPORT_DIR, exist_ok=True)  # 가져올 파일을 넣는 곳
@@ -545,8 +659,9 @@ def main():
         print(f"관리판 포트 {PANEL_PORT} 을(를) 이미 쓰고 있습니다: {where}\n"
               "다른 폴더의 애니위키 관리판이 켜져 있을 수 있습니다. 그쪽 창을 닫거나 작업 관리자에서 끄고 다시 실행하세요.", flush=True)
         sys.exit(1)
+    threading.Thread(target=close_watcher, args=(srv,), daemon=True).start()
     url = f"http://127.0.0.1:{PANEL_PORT}/"
-    print(f"애니위키 관리판: {url}", flush=True)
+    print(f"애니위키 관리판: {url}  (끌 때는 [끄기]를 누르거나 관리판 창을 닫으세요)", flush=True)
     if "--no-browser" not in sys.argv:
         webbrowser.open(url)
     # 지난번에 위키를 켜 둔 채로 끝냈으면 다시 켠다(끄기를 누른 경우만 꺼진 채로 둔다)
