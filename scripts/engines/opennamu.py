@@ -68,6 +68,12 @@ class OpenNamu(Engine):
                 raise RuntimeError(f"openNAMU 가 DB 를 만들지 못했습니다({self.port}번 포트를 확인하세요)")
 
     def command(self):
+        try:  # 켤 때마다 표 전체를 읽는 검사를 피하는 색인(없을 때 한 번만 만든다). scripts/fast_start.py 참고
+            import fast_start
+            if os.path.exists(self.db_path):
+                fast_start.ensure(self.db_path)
+        except Exception:
+            pass  # 못 만들어도 켜는 데는 지장 없다(조금 느릴 뿐)
         return [self.exe, str(self.port), "--localhost"], self.dir, None
 
     # ---- 문서
