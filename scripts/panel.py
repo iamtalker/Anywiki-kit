@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6.3"
+KIT_VERSION = "0.6.4"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
@@ -106,22 +106,85 @@ def start_proxy():
 
 
 def port_owner(port):
-    """그 포트를 듣고 있는 프로세스의 (PID, 실행 파일 경로). 비어 있으면 None. Windows 만(그 밖은 None)."""
+    """그 포트를 듣고 있는 프로세스의 (PID, 실행 파일 경로, 명령줄). 비어 있으면 None. Windows 만(그 밖은 None)."""
     if not WIN:
         return None
     ps = ("[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
           f"$c = Get-NetTCPConnection -LocalPort {int(port)} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; "
           "if ($c) { $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $c.OwningProcess); "
-          "Write-Output ([string]$c.OwningProcess + '|' + [string]$p.ExecutablePath) }")
+          "Write-Output ([string]$c.OwningProcess + '|' + [string]$p.ExecutablePath + '|' + [string]$p.CommandLine) }")
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, creationflags=NO_WINDOW, timeout=30)
         out = r.stdout.decode("utf-8", "replace").strip()
     except (OSError, subprocess.SubprocessError):
         return None
-    if "|" not in out:
+    if out.count("|") < 2:
         return None
-    pid, path = out.split("|", 1)
-    return int(pid), path.strip()
+    pid, path, cmd = out.split("|", 2)
+    return int(pid), path.strip(), cmd.strip()
+
+
+KIT_SCRIPT = re.compile(r"([A-Za-z]:[\\/][^\"]*?)[\\/]scripts[\\/](?:offline_proxy|panel)\.py", re.I)
+
+
+def other_kit_root(owner):
+    """포트 주인이 '다른 폴더의 애니위키 프로그램'으로 확인되면 그 폴더(루트)를, 아니면 None.
+    확인 방법: 실행 파일에서 위로 올라가며 scripts/panel.py 와 sources.json 이 있는 폴더를 찾거나, 명령줄이 이 키트의 스크립트를 가리킴."""
+    pid, exe, cmd = owner
+    d = os.path.dirname(exe or "")
+    for _ in range(4):
+        if d and os.path.exists(os.path.join(d, "scripts", "panel.py")) and os.path.exists(os.path.join(d, "sources.json")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    m = KIT_SCRIPT.search(cmd or "")
+    if m and os.path.exists(os.path.join(m.group(1), "scripts", "panel.py")):
+        return m.group(1)
+    return None
+
+
+def same_dir(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def kit_busy(root):
+    """그 폴더의 애니위키가 설치·가져오기·내보내기 같은 작업 중인가(Windows). 작업 중이면 그 엔진을 끄면 작업이 망가진다."""
+    if not WIN:
+        return False
+    ps = ("$root = '" + os.path.abspath(root).replace("'", "''") + "'; "
+          r"$pat = [regex]::Escape($root + '\scripts\') + '(install\.ps1|kit\.py|transfer\.py|wiki_pack\.py|build_assets\.py)'; "
+          r"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(powershell|pwsh|python|pythonw)\.exe$' -and "
+          r"$_.CommandLine -and $_.ProcessId -ne $PID -and $_.CommandLine -match $pat }).Count")
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, creationflags=NO_WINDOW, timeout=30)
+        return int((r.stdout.decode("utf-8", "replace").strip() or "0")) > 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+def free_ports_from_other_kits(ports):
+    """다른 폴더의 애니위키가 이 포트들을 쓰고 있으면 그 위키(관리판 포함)를 끄고 포트가 비기를 기다린다.
+    애니위키 프로그램으로 확인되지 않는 프로그램은 건드리지 않고, 그 폴더가 설치·가져오기 중이면 끄지 않는다."""
+    killed = set()
+    for port in ports:
+        owner = port_owner(port)
+        if not owner:
+            continue
+        root = other_kit_root(owner)
+        if root and not same_dir(root, ROOT) and kit_busy(root):
+            print(f"다른 폴더의 애니위키({root})가 설치·가져오기 같은 작업 중이라 끄지 않습니다", flush=True)
+            continue
+        if root and not same_dir(root, ROOT) and os.path.normcase(os.path.abspath(root)) not in killed:
+            print(f"다른 폴더의 애니위키({root})가 포트 {port} 을(를) 쓰고 있어 먼저 끕니다", flush=True)
+            sweep_wiki_processes(root, include_panel=True)
+            killed.add(os.path.normcase(os.path.abspath(root)))
+    if killed:
+        for _ in range(20):  # 최대 10초 기다린다
+            if not any(port_is_open(p) for p in ports):
+                break
+            time.sleep(0.5)
 
 
 def foreign_port_conflict(ports):
@@ -153,7 +216,8 @@ def start_wiki(open_browser=True):
                     ports.append(int(settings()["listen"].rsplit(":", 1)[1]))
                 except (ValueError, IndexError):
                     pass
-            conflict = foreign_port_conflict(ports)
+            free_ports_from_other_kits(ports)  # 다른 폴더의 애니위키가 켜져 있으면 먼저 끈다
+            conflict = foreign_port_conflict(ports)  # 그래도 남았다면 애니위키가 아닌 프로그램이거나 작업 중이다 → 안내하고 멈춤
             if conflict:
                 return conflict
             procs["engine"] = e.spawn(os.path.join(ROOT, "server.log"))
@@ -180,16 +244,18 @@ def port_is_open(port):
     return port_open(port)
 
 
-def sweep_wiki_processes():
-    """이 폴더의 위키 프로그램(엔진·중계 서버·터널)이 관리판이 기억하지 못한 채 남아 있으면 끈다(Windows).
-    설치·가져오기·내보내기 같은 작업의 프로세스는 건드리지 않는다(명령줄로 구분)."""
+def sweep_wiki_processes(root=None, include_panel=False):
+    """어떤 애니위키 폴더(기본: 이 폴더)의 위키 프로그램(엔진·중계 서버·터널)이 남아 있으면 끈다(Windows).
+    설치·가져오기·내보내기 같은 작업의 프로세스는 건드리지 않는다(명령줄로 구분). include_panel 이면 그 폴더의 관리판도 끈다."""
     if not WIN:
         return
-    ps = ("$root = '" + ROOT.replace("'", "''") + "'; "
+    root = os.path.abspath(root or ROOT)
+    pat = r"offline_proxy\.py" + (r"|panel\.py" if include_panel else "")
+    ps = ("$root = '" + root.replace("'", "''") + "'; "
           "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne " + str(os.getpid()) + " -and "
           "$_.ExecutablePath -and $_.ExecutablePath.StartsWith($root) -and ("
           "$_.Name -in @('main.amd64.exe','cloudflared.exe') -or "
-          "($_.Name -eq 'python.exe' -and $_.CommandLine -match 'offline_proxy\\.py')) } | "
+          r"($_.Name -match '^pythonw?\.exe$' -and $_.CommandLine -match '" + pat + "')) } | "
           "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], creationflags=NO_WINDOW,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -651,13 +717,19 @@ def main():
     kit.migrate(ROOT)
     os.makedirs(IMPORT_DIR, exist_ok=True)  # 가져올 파일을 넣는 곳
     threading.Thread(target=update_loop, daemon=True).start()
-    try:
-        srv = ThreadingHTTPServer(("127.0.0.1", PANEL_PORT), Handler)
-    except OSError:
+    srv = None
+    for attempt in range(2):
+        try:
+            srv = ThreadingHTTPServer(("127.0.0.1", PANEL_PORT), Handler)
+            break
+        except OSError:
+            if attempt == 0:
+                free_ports_from_other_kits([PANEL_PORT])  # 다른 폴더의 애니위키 관리판이면 끄고 다시 시도
+    if srv is None:
         owner = port_owner(PANEL_PORT)
         where = (owner[1] or f"PID {owner[0]}") if owner else "알 수 없는 프로그램"
-        print(f"관리판 포트 {PANEL_PORT} 을(를) 이미 쓰고 있습니다: {where}\n"
-              "다른 폴더의 애니위키 관리판이 켜져 있을 수 있습니다. 그쪽 창을 닫거나 작업 관리자에서 끄고 다시 실행하세요.", flush=True)
+        print(f"관리판 포트 {PANEL_PORT} 을(를) 애니위키가 아닌 프로그램이 쓰고 있거나 그쪽이 작업 중입니다: {where}\n"
+              "그 프로그램을 끄고(작업이 끝난 뒤) 다시 실행하세요.", flush=True)
         sys.exit(1)
     threading.Thread(target=close_watcher, args=(srv,), daemon=True).start()
     url = f"http://127.0.0.1:{PANEL_PORT}/"
