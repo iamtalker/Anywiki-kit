@@ -35,7 +35,9 @@ class Engine:
 
     def __init__(self, root):
         self.root = os.path.abspath(root)
-        self.dir = os.path.join(self.root, "wikis", self.name)
+        # 위키 데이터는 kit 밖(최상위의 wikis)에 둔다. Docker 는 컨테이너 안 /kit/wikis 로 환경 변수를 준다.
+        data_root = os.environ.get("ANYWIKI_DATA_DIR") or os.path.join(os.path.dirname(self.root), "wikis")
+        self.dir = os.path.join(data_root, self.name)
 
     # ---- 설치·켜기
     def installed(self):

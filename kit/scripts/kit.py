@@ -65,15 +65,6 @@ def current():
     return e if e in engines.ENGINES else "opennamu"
 
 
-def migrate(root=ROOT):
-    """0.1 의 wiki/ (openNAMU) 를 0.2 의 wikis/opennamu/ 로 옮긴다."""
-    old, new = os.path.join(root, "wiki"), os.path.join(root, "wikis", "opennamu")
-    if os.path.exists(os.path.join(old, "data.db")) and not os.path.exists(new):
-        os.makedirs(os.path.dirname(new), exist_ok=True)
-        os.replace(old, new)
-        print("예전 위키 폴더(wiki/)를 wikis/opennamu/ 로 옮겼습니다", file=sys.stderr, flush=True)
-
-
 def install(name, log=print):
     import wikiconv
     from engines.base import Page
@@ -112,7 +103,6 @@ def info():
 
 
 def main():
-    migrate()
     if len(sys.argv) < 2:
         print(__doc__)
         return

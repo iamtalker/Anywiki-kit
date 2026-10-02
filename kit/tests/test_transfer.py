@@ -39,10 +39,13 @@ def check(cond, msg):
 
 
 def make_root():
-    """openNAMU 가 설치된 것처럼 꾸민 임시 키트 폴더(실행 파일은 빈 파일, 시험에는 DB 만 쓴다)."""
-    root = tempfile.mkdtemp(prefix="awtest-")
+    """openNAMU 가 설치된 것처럼 꾸민 임시 폴더(실행 파일은 빈 파일, 시험에는 DB 만 쓴다).
+    새 구조처럼 최상위(top) 안에 kit(root)와 wikis 를 나란히 둔다. 키트 폴더(kit)를 돌려준다."""
+    top = tempfile.mkdtemp(prefix="awtest-")
+    root = os.path.join(top, "kit")
+    os.makedirs(root)
     shutil.copy(os.path.join(ROOT, "sources.json"), root)
-    d = os.path.join(root, "wikis", "opennamu")
+    d = os.path.join(top, "wikis", "opennamu")
     os.makedirs(d)
     open(os.path.join(d, "main.amd64.exe" if os.name == "nt" else "main.bin"), "w").close()
     db = sqlite3.connect(os.path.join(d, "data.db"))
@@ -88,7 +91,7 @@ try:
             check("굵게" in e2.get("대문").text, f"'굵게' 잃음: {e2.get('대문').text!r}")
             check(transfer.import_file(r2, out) == 0, "다시 넣으면 모두 건너뜀")
         finally:
-            shutil.rmtree(r2, ignore_errors=True)
+            shutil.rmtree(os.path.dirname(r2), ignore_errors=True)
     for bad in ("a.xml", "a.zip", "a.md"):
         try:
             transfer.detect(bad)
@@ -96,7 +99,7 @@ try:
         except ValueError:
             pass
 finally:
-    shutil.rmtree(root, ignore_errors=True)
+    shutil.rmtree(os.path.dirname(root), ignore_errors=True)
 
 print("옮기기 시험 통과" if not fails else f"옮기기 시험 {fails}개 실패")
 sys.exit(1 if fails else 0)

@@ -15,6 +15,11 @@
 set -euo pipefail
 KIT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$KIT"
+
+# 위키 데이터(wikis)는 kit 밖(최상위)에 둔다. 아래 스크립트는 kit 기준 상대 경로 wikis/ 를 쓰므로 kit/wikis 를 그곳으로 이어 준다.
+# (kit/wikis 가 이미 폴더이면 — 도커 볼륨 — 그대로 쓴다)
+TOP="$(cd "$KIT/.." && pwd)"
+if [ ! -e "$KIT/wikis" ]; then mkdir -p "${ANYWIKI_DATA_DIR:-$TOP/wikis}"; ln -s "${ANYWIKI_DATA_DIR:-$TOP/wikis}" "$KIT/wikis"; fi
 CONF="$KIT/anywiki.conf"
 VARS=(LISTEN TUNNEL UPDATE_NOTICE)
 # 기억해 둔 설정 읽기(이번에 직접 준 값이 우선). source 하지 않고 KEY=값 줄만 읽는다

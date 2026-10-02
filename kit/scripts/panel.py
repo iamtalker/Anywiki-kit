@@ -22,11 +22,12 @@ import engines  # noqa: E402
 import kit  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(SCRIPTS)
+ROOT = os.path.dirname(SCRIPTS)  # 키트(kit) 폴더: 프로그램·도구·설정·기록이 있다
+TOP = os.path.dirname(ROOT)      # 사용자가 보는 폴더: 애니위키.exe, wikis, kit
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6.6"
+KIT_VERSION = "0.7.0"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
@@ -127,21 +128,38 @@ def port_owner(port):
 KIT_SCRIPT = re.compile(r"([A-Za-z]:[\\/][^\"]*?)[\\/]scripts[\\/](?:offline_proxy|panel)\.py", re.I)
 
 
+def kit_top(d):
+    """폴더 d 가 애니위키 폴더이면 사용자가 보는 폴더(최상위)를, 아니면 None.
+    새 구조는 최상위/kit/scripts/panel.py, 옛 구조(0.6 이하)는 최상위/scripts/panel.py 이다."""
+    if not d:
+        return None
+    if os.path.exists(os.path.join(d, "kit", "scripts", "panel.py")) and os.path.exists(os.path.join(d, "kit", "sources.json")):
+        return d
+    if os.path.exists(os.path.join(d, "scripts", "panel.py")) and os.path.exists(os.path.join(d, "sources.json")):
+        # 이 폴더가 kit 이면(새 구조) 그 위가 최상위
+        if os.path.basename(os.path.normpath(d)).lower() == "kit" and any(
+                os.path.exists(os.path.join(os.path.dirname(os.path.normpath(d)), n)) for n in ("애니위키.exe", "애니위키.bat")):
+            return os.path.dirname(os.path.normpath(d))
+        return d
+    return None
+
+
 def other_kit_root(owner):
-    """포트 주인이 '다른 폴더의 애니위키 프로그램'으로 확인되면 그 폴더(루트)를, 아니면 None.
-    확인 방법: 실행 파일에서 위로 올라가며 scripts/panel.py 와 sources.json 이 있는 폴더를 찾거나, 명령줄이 이 키트의 스크립트를 가리킴."""
+    """포트 주인이 '다른 폴더의 애니위키 프로그램'으로 확인되면 그 폴더(최상위)를, 아니면 None.
+    확인 방법: 실행 파일에서 위로 올라가며 애니위키 폴더를 찾거나, 명령줄이 이 키트의 스크립트를 가리킴."""
     pid, exe, cmd = owner
     d = os.path.dirname(exe or "")
-    for _ in range(4):
-        if d and os.path.exists(os.path.join(d, "scripts", "panel.py")) and os.path.exists(os.path.join(d, "sources.json")):
-            return d
+    for _ in range(5):
+        top = kit_top(d)
+        if top:
+            return top
         parent = os.path.dirname(d)
         if parent == d:
             break
         d = parent
     m = KIT_SCRIPT.search(cmd or "")
-    if m and os.path.exists(os.path.join(m.group(1), "scripts", "panel.py")):
-        return m.group(1)
+    if m:
+        return kit_top(m.group(1))
     return None
 
 
@@ -154,7 +172,7 @@ def kit_busy(root):
     if not WIN:
         return False
     ps = ("$root = '" + os.path.abspath(root).replace("'", "''") + "'; "
-          r"$pat = [regex]::Escape($root + '\scripts\') + '(install\.ps1|kit\.py|transfer\.py|wiki_pack\.py|build_assets\.py)'; "
+          r"$pat = [regex]::Escape($root + '\') + '(kit\\)?scripts\\(install\.ps1|kit\.py|transfer\.py|wiki_pack\.py|build_assets\.py)'; "
           r"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(powershell|pwsh|python|pythonw)\.exe$' -and "
           r"$_.CommandLine -and $_.ProcessId -ne $PID -and $_.CommandLine -match $pat }).Count")
     try:
@@ -173,10 +191,10 @@ def free_ports_from_other_kits(ports):
         if not owner:
             continue
         root = other_kit_root(owner)
-        if root and not same_dir(root, ROOT) and kit_busy(root):
+        if root and not same_dir(root, TOP) and kit_busy(root):
             print(f"다른 폴더의 애니위키({root})가 설치·가져오기 같은 작업 중이라 끄지 않습니다", flush=True)
             continue
-        if root and not same_dir(root, ROOT) and os.path.normcase(os.path.abspath(root)) not in killed:
+        if root and not same_dir(root, TOP) and os.path.normcase(os.path.abspath(root)) not in killed:
             print(f"다른 폴더의 애니위키({root})가 포트 {port} 을(를) 쓰고 있어 먼저 끕니다", flush=True)
             sweep_wiki_processes(root, include_panel=True)
             killed.add(os.path.normcase(os.path.abspath(root)))
@@ -190,7 +208,7 @@ def free_ports_from_other_kits(ports):
 def foreign_port_conflict(ports):
     """우리 폴더가 아닌 곳의 프로그램이 이 포트들을 쓰고 있으면 안내 글을, 아니면 빈 글을 돌려준다.
     다른 폴더에서 켠 애니위키가 꺼지지 않은 채 있으면 새 폴더에서 켜도 옛 위키가 보이기 때문이다."""
-    root = os.path.normcase(os.path.abspath(ROOT)) + os.sep
+    root = os.path.normcase(os.path.abspath(TOP)) + os.sep  # 엔진은 wikis(최상위 아래), 파이썬은 kit(최상위 아래)에 있다
     for port in ports:
         owner = port_owner(port)
         if owner and not os.path.normcase(os.path.abspath(owner[1] or "")).startswith(root):
@@ -203,7 +221,6 @@ def foreign_port_conflict(ports):
 
 def start_wiki(open_browser=True):
     with lock:
-        kit.migrate(ROOT)
         e = eng()
         if not e.installed():
             return f"{engines.NAMES[e.name]} 가 아직 설치되지 않았습니다. '설치' 칸에서 [설치]를 누르세요"
@@ -249,7 +266,7 @@ def sweep_wiki_processes(root=None, include_panel=False):
     설치·가져오기·내보내기 같은 작업의 프로세스는 건드리지 않는다(명령줄로 구분). include_panel 이면 그 폴더의 관리판도 끈다."""
     if not WIN:
         return
-    root = os.path.abspath(root or ROOT)
+    root = os.path.abspath(root or TOP)
     pat = r"offline_proxy\.py" + (r"|panel\.py" if include_panel else "")
     ps = ("$root = '" + root.replace("'", "''") + "'; "
           "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne " + str(os.getpid()) + " -and "
@@ -528,7 +545,7 @@ DokuWiki: DokuWiki 폴더에 풀고 <code>php bin/indexer.php</code> · Markdown
 <button onclick="api('/api/update_check').then(load)">지금 확인</button>
 <div id="updst" class="note" style="margin-top:6px"></div>
 <p style="font-size:12px;color:#777">12시간에 한 번 GitHub(iamtalker/anywiki-kit)의 최신 릴리스만 확인합니다. 보내는 정보는 없고, 스스로 설치하지 않습니다.
-새 판은 직접 받아 이 폴더에 덮어쓰세요(<code>wikis</code> 폴더는 그대로 두면 됩니다).</p></details>
+새 판은 위키를 끈 뒤 릴리스 zip 을 지금 쓰는 폴더에 풀면서 <b>덮어쓰기</b> 하면 됩니다(<code>wikis</code> 폴더와 설정은 zip 에 없어서 그대로 남습니다).</p></details>
 <script>
 let listen="127.0.0.1:4000";
 async function api(p){const r=await fetch(p,{method:'POST'});return (await r.json()).msg}
@@ -675,7 +692,7 @@ def cleanup_leftovers():
     """전에 관리판 창을 그냥 닫아서 남은 위키 프로그램(엔진·중계 서버·터널)을 정리한다."""
     if not WIN:
         return
-    ps = ("$root = '" + ROOT.replace("'", "''") + "'; "
+    ps = ("$root = '" + TOP.replace("'", "''") + "'; "
           "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne " + str(os.getpid()) + " -and "
           "$_.ExecutablePath -and $_.ExecutablePath.StartsWith($root) -and "
           "$_.Name -in @('main.amd64.exe','python.exe','pythonw.exe','cloudflared.exe') } | "
@@ -714,7 +731,6 @@ def close_watcher(srv):
 def main():
     kill_children_on_exit()
     cleanup_leftovers()
-    kit.migrate(ROOT)
     os.makedirs(IMPORT_DIR, exist_ok=True)  # 가져올 파일을 넣는 곳
     threading.Thread(target=update_loop, daemon=True).start()
     srv = None

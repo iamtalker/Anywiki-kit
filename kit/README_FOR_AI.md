@@ -28,6 +28,13 @@
 
 ## 3. 구조
 
+**폴더 구조(0.7 부터, 유어위키 2.1 과 같다)**: 사용자에게 보이는 최상위에는 `애니위키.exe`, `서버설치가이드.html`, `kit/`, 설치하면 생기는 `wikis/`(위키 데이터)만 둔다.
+저장소 최상위에는 더해서 `README.md`(GitHub 첫 화면)·`CLAUDE.md`·`AGENTS.md`·`LICENSE`·`.gitignore`·`.gitattributes`·`.github/` 가 있고, **`.gitattributes` 의 `export-ignore` 로 릴리스 zip 에서는 빠진다**(zip 최상위는 exe·html·kit 만).
+**이 문서의 상대 경로는 `kit/` 기준이다**(예: `scripts/` = `kit/scripts/`). 예외는 `wikis/`(최상위). 코드: `panel.py` 의 `ROOT`=kit, `TOP`=최상위, 엔진 데이터 폴더는 `engines/base.py`(`TOP/wikis/<엔진>`, Docker 는 `ANYWIKI_DATA_DIR`).
+리눅스 스크립트는 `kit/wikis` 를 최상위 `wikis` 로 잇는 링크를 만든다(이미 폴더이면 그대로 — Docker 볼륨). 시험·pyflakes 같은 명령은 **kit 폴더에서** 돌린다.
+**자동 릴리스**(`.github/release.py`)는 `kit/CHANGELOG.md` 를 읽는다. 새 판을 위에 덧붙일 때 바로 아래 판의 제목에 `(커밋 해시)` 를 적는다.
+`애니위키.exe` 는 `kit/launcher/build.ps1` 로 만들어 **저장소에 올린다**(`*.exe binary`). 아이콘 `anywiki.ico`(초록 바탕 흰 A)는 순수 파이썬으로 그렸다.
+
 | 포트 | 무엇 | 파일 |
 |---|---|---|
 | 4100 | 관리판(127.0.0.1 전용, Origin 검사) | `scripts/panel.py` (HTML·JS 가 파일 안 `PAGE` 문자열에 있음) |
@@ -45,7 +52,7 @@
 - **옮기기** `scripts/transfer.py export|import <root> <형식|파일>`: 내보내기는 네 형식(`translate()` 로 통역), 가져오기는 openNAMU `.db` 만(유어위키와 같게). openNAMU→openNAMU 는 역사까지 `wiki_pack.py` 로.
   `wiki_pack` 의 메타 표 이름 `yourwiki_pack` 은 유어위키와 파일을 주고받으려고 그대로 둔다.
 - **명령줄** `scripts/kit.py install | run-engine | info`.
-- 설치·켜기: Windows `애니위키.bat` → `panel_launch.ps1`(없으면 `install.ps1` 로 파이썬만) → `panel.py`(엔진 설치는 관리판이 `kit.py install`).
+- 설치·켜기: Windows `애니위키.exe` → `kit/tools/python/python.exe kit/scripts/panel.py`(도구가 없을 때만 `panel_launch.ps1`)(없으면 `install.ps1` 로 파이썬만) → `panel.py`(엔진 설치는 관리판이 `kit.py install`).
   리눅스 `server/install.sh`, `server/anywiki.sh start|stop|status|export|import|install-service`(프로세스 묶음으로 띄우고 묶음째 끔). Docker `docker/entrypoint.sh`.
 - 공개: `scripts/cloudflared.py`(빠른 터널). 새 판 알림: `scripts/update_check.py`(GitHub 최신 릴리스, 알리기만, 404=릴리스 없음).
 - 요구 명세: `docs/SPEC.md`(주인이 요구한 것 목록 + 구현 결정). 0.6 에서 줄인 것은 거기에 (바뀜) 으로 적혀 있다.
@@ -84,6 +91,11 @@
 - [ ] 줄이면서 남은 `--pass` 모드(offline_proxy)가 쓰이는 곳은 없다. 필요 없으면 지울 것.
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
+
+### 2026-10-03 — 0.7.0 (폴더 구조 정리)
+- 유어위키 2.1.0/2.1.1 과 같은 구조로 바꿈(주인 요청). 요점은 위 3번 절. 관리판 "다른 폴더 위키·남은 프로세스" 판단은 모두 `TOP` 기준(`kit_top()` 이 새·옛 구조를 모두 알아봄).
+  `kit.migrate`(0.1 wiki/ → wikis/opennamu)는 새 구조와 충돌해서 지웠다. `.github/release.py`·`release.yml` 은 `kit/CHANGELOG.md` 를 본다.
+- 시험: kit 폴더에서 `python tests/run_all.py`.
 
 ### 2026-10-03 — 0.6.6
 - 상단 메뉴 드롭다운이 투명하게 보이던 CSS 우선순위 버그 수정(`offline_proxy.theme_css`: `header#main a` 흰색이 `.top_cel_in a` 를 이김 → `header#main .top_cel_in a`). 유어위키 2.0.5 와 같은 수정.

@@ -26,9 +26,12 @@ function Get-Verified($url, $out, $sha256) {
 Write-Host '== 도구 준비 (파이썬)' -ForegroundColor Cyan
 $t = $cfg.tools
 $pyZip = Join-Path $Tools 'python.zip'
-Get-Verified $t.python.url $pyZip $t.python.sha256
 $python = Join-Path $Tools 'python\python.exe'
-if (-not (Test-Path $python)) { Expand-Archive $pyZip (Join-Path $Tools 'python') -Force }
+if (-not (Test-Path $python)) {   # 압축 파일은 풀 때만 받고, 풀고 나면 지운다
+    Get-Verified $t.python.url $pyZip $t.python.sha256
+    Expand-Archive $pyZip (Join-Path $Tools 'python') -Force
+    Remove-Item $pyZip -Force -ErrorAction SilentlyContinue
+}
 Write-Host '  완료'
 if (-not $Install) { exit 0 }
 

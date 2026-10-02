@@ -5,3 +5,10 @@ tests export-ignore
 AGENTS.md export-ignore
 CLAUDE.md export-ignore
 README_FOR_AI.md export-ignore
+
+# 새 구조(최상위는 애니위키.exe · 서버설치가이드.html · kit 만 들어간다): 저장소 전용 파일을 더 뺀다
+/README.md export-ignore
+/LICENSE export-ignore
+/.gitignore export-ignore
+/kit/docs export-ignore
+*.exe binary

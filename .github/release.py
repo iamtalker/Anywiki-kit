@@ -16,7 +16,7 @@ def run(*a, check=True):
     return subprocess.run(a, capture_output=True, text=True, check=check)
 
 
-text = open("CHANGELOG.md", encoding="utf-8").read()
+text = open("kit/CHANGELOG.md", encoding="utf-8").read()
 sections, cur = [], None
 for line in text.splitlines():
     m = HEAD.match(line)
@@ -29,12 +29,12 @@ for line in text.splitlines():
 HOWTO = """
 
 ## 받기
-아래 **Assets** 의 `anywiki-kit-{ver}.zip` 을 받아 원하는 곳에 압축을 풉니다.
-- Windows: 푼 폴더의 `애니위키.bat` 을 더블클릭 → 관리판이 열리면 '엔진' 칸에서 [설치].
-- 리눅스: `bash server/install.sh opennamu` → `bash server/anywiki.sh start` (자세한 것은 README).
-- 이전 판에서 올릴 때: 새 판을 기존 폴더에 덮어 풀면 됩니다(`wikis` 폴더는 그대로 둠).
+아래 **Assets** 의 `anywiki-kit-{ver}.zip` 을 받아 원하는 곳에 압축을 풉니다. 최상위에는 `애니위키.exe`, `서버설치가이드.html`, `kit` 만 있고, 설치하면 `wikis`(내 위키)가 생깁니다.
+- Windows: 푼 폴더의 `애니위키.exe` 를 더블클릭 → 관리판이 열리면 '엔진' 칸에서 [설치]. (Windows 가 "알 수 없는 게시자"라고 경고하면 [추가 정보] → [실행])
+- 리눅스: `bash kit/server/install.sh opennamu` → `bash kit/server/anywiki.sh start` (자세한 것은 kit/README.md).
+- 새 판으로 올릴 때(0.7 이상): 위키를 끄고 새 압축 파일을 지금 쓰는 폴더에 풀면서 덮어쓰기 하면 됩니다(`wikis` 폴더와 설정은 압축 파일에 없어 그대로 남음). 0.6 이하에서는 새 폴더에 풀고 옛 폴더의 `wikis` 폴더만 옮기세요.
 
-전체 변경 기록: CHANGELOG.md
+전체 변경 기록: kit/CHANGELOG.md
 """
 
 for i, s in enumerate(sections):

@@ -5,7 +5,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /kit
 COPY . /kit
-ENV LISTEN=0.0.0.0:4000 COLOR=#3b5bdb PYTHONUTF8=1
+ENV LISTEN=0.0.0.0:4000 COLOR=#3b5bdb PYTHONUTF8=1 ANYWIKI_DATA_DIR=/kit/wikis
 EXPOSE 4000
 VOLUME ["/kit/wikis"]
 ENTRYPOINT ["bash", "docker/entrypoint.sh"]
