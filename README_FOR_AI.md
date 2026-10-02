@@ -85,6 +85,9 @@
 
 ## 7. 작업 기록 (새 항목을 위에 덧붙인다)
 
+### 2026-10-03 — 0.6.6
+- 상단 메뉴 드롭다운이 투명하게 보이던 CSS 우선순위 버그 수정(`offline_proxy.theme_css`: `header#main a` 흰색이 `.top_cel_in a` 를 이김 → `header#main .top_cel_in a`). 유어위키 2.0.5 와 같은 수정.
+
 ### 2026-10-03 — 0.6.5
 - 유어위키 2.0.3 의 켜는 시간 단축을 옮김: `scripts/fast_start.py`(열마다 `is null` 검사를 부분 색인으로 회피)를 `engines/opennamu.py` 의 `command()` 에서 호출(관리판·`kit.py run-engine` 모두 거침). 엔진이 꺼져 있을 때만 쓴다.
 

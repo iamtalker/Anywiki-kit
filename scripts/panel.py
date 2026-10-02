@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6.5"
+KIT_VERSION = "0.6.6"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
