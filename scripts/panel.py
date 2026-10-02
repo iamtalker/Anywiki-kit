@@ -26,7 +26,7 @@ ROOT = os.path.dirname(SCRIPTS)
 PANEL_PORT = 4100
 WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if WIN else 0  # CREATE_NO_WINDOW
-KIT_VERSION = "0.6.1"
+KIT_VERSION = "0.6.2"
 EXPORT_DIR = os.path.join(ROOT, "export")
 IMPORT_DIR = os.path.join(ROOT, "import")
 IMPORT_EXT = (".db", ".sqlite", ".sqlite3")
@@ -104,6 +104,39 @@ def start_proxy():
     spawn("proxy", args, "proxy.log")
 
 
+def port_owner(port):
+    """그 포트를 듣고 있는 프로세스의 (PID, 실행 파일 경로). 비어 있으면 None. Windows 만(그 밖은 None)."""
+    if not WIN:
+        return None
+    ps = ("[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+          f"$c = Get-NetTCPConnection -LocalPort {int(port)} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; "
+          "if ($c) { $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $c.OwningProcess); "
+          "Write-Output ([string]$c.OwningProcess + '|' + [string]$p.ExecutablePath) }")
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, creationflags=NO_WINDOW, timeout=30)
+        out = r.stdout.decode("utf-8", "replace").strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if "|" not in out:
+        return None
+    pid, path = out.split("|", 1)
+    return int(pid), path.strip()
+
+
+def foreign_port_conflict(ports):
+    """우리 폴더가 아닌 곳의 프로그램이 이 포트들을 쓰고 있으면 안내 글을, 아니면 빈 글을 돌려준다.
+    다른 폴더에서 켠 애니위키가 꺼지지 않은 채 있으면 새 폴더에서 켜도 옛 위키가 보이기 때문이다."""
+    root = os.path.normcase(os.path.abspath(ROOT)) + os.sep
+    for port in ports:
+        owner = port_owner(port)
+        if owner and not os.path.normcase(os.path.abspath(owner[1] or "")).startswith(root):
+            where = owner[1] or f"PID {owner[0]}"
+            return (f"포트 {port} 을(를) 이 폴더가 아닌 프로그램이 쓰고 있습니다: {where}\n"
+                    "다른 폴더에서 켠 애니위키가 꺼지지 않았다면 그쪽 관리판에서 [끄기]를 누르거나 작업 관리자에서 끈 뒤 다시 켜세요. "
+                    "(그대로 두면 이 폴더가 아니라 그 위키가 보입니다)")
+    return ""
+
+
 def start_wiki(open_browser=True):
     with lock:
         kit.migrate(ROOT)
@@ -113,6 +146,15 @@ def start_wiki(open_browser=True):
         if busy():
             return f"{busy()} 중입니다. 끝난 뒤에 켜세요"
         if not alive("engine"):
+            ports = [e.port]
+            if not alive("proxy"):
+                try:
+                    ports.append(int(settings()["listen"].rsplit(":", 1)[1]))
+                except (ValueError, IndexError):
+                    pass
+            conflict = foreign_port_conflict(ports)
+            if conflict:
+                return conflict
             procs["engine"] = e.spawn(os.path.join(ROOT, "server.log"))
         if not alive("proxy"):
             start_proxy()
@@ -495,7 +537,14 @@ def main():
     kit.migrate(ROOT)
     os.makedirs(IMPORT_DIR, exist_ok=True)  # 가져올 파일을 넣는 곳
     threading.Thread(target=update_loop, daemon=True).start()
-    srv = ThreadingHTTPServer(("127.0.0.1", PANEL_PORT), Handler)
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", PANEL_PORT), Handler)
+    except OSError:
+        owner = port_owner(PANEL_PORT)
+        where = (owner[1] or f"PID {owner[0]}") if owner else "알 수 없는 프로그램"
+        print(f"관리판 포트 {PANEL_PORT} 을(를) 이미 쓰고 있습니다: {where}\n"
+              "다른 폴더의 애니위키 관리판이 켜져 있을 수 있습니다. 그쪽 창을 닫거나 작업 관리자에서 끄고 다시 실행하세요.", flush=True)
+        sys.exit(1)
     url = f"http://127.0.0.1:{PANEL_PORT}/"
     print(f"애니위키 관리판: {url}", flush=True)
     if "--no-browser" not in sys.argv:
